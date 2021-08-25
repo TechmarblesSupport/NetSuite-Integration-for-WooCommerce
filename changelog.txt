@@ -1,0 +1,17 @@
+*** NetSuite Integration for WooCommerce Changelog ***
+
+2021-08-13 - version 1.0.3
+* Add price level for inventory 
+
+2021-08-12 - version 1.0.2
+* Sync Kit Items Quantity and Price
+
+2021-07-27 - version 1.0.1
+* Sync Assemply Items Quantity and Price
+
+2021-06-01 - version 1.0
+* Initial release
+
+
+
+

@@ -1,0 +1,333 @@
+/* Tooltip container */
+.tooltip {
+    position: relative;
+    display: inline-block;
+    opacity: 1 !important;
+}
+/* Tooltip text */
+.tooltip .tooltiptext {
+    font-size: 12px;
+    visibility: hidden;
+    width: 220px;
+    background-color: #d22d2d;
+    color: #fff;
+    text-align: center;
+    padding: 10px 0;
+    border-radius: 6px;
+    position: absolute;
+    z-index: 1;
+    top: 125%;
+    margin-left: 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 999999;
+    left: 0;
+}
+/* Tooltip arrow */
+.tooltip .tooltiptext::after {
+   content: " ";
+   position: absolute;
+   bottom: 100%;
+   left: 15px;
+   margin-left: -5px;
+   border-width: 5px;
+   border-style: solid;
+   border-color: transparent transparent black transparent;
+}
+/* Show the tooltip text when you mouse over the tooltip container */
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+ul.help-sub-ui{
+    list-style:lower-latin !important;
+    padding: 0 33px !important;
+}
+.input-text.regular-input {
+    width: 100%;
+    margin: 0;
+    padding: 6px;
+    box-sizing: border-box;
+    vertical-align: top;
+    height: auto;
+}
+.form-table th{
+    width: 280px !important;
+}
+table.netsuite_conditional_mapping.table td {
+    width: auto !important;
+    max-width: 200px;
+}
+select.cm_operator.input-sm, select.form-control.input-sm {
+    width: 100% !important;
+}
+span.exlcude_in_update {
+    display: flex;
+    padding:  0 0 10px;
+    align-items: center;
+    height: 25px;
+}
+span.exlcude_in_update input.form-control.update_checkbox {
+    margin-top: 0;
+    margin-right: 10px;
+}
+span.exlcude_in_update label {
+    margin-bottom: 0;
+}
+.well {
+    position: relative;
+}
+.well span.btn.btn-danger.removeCMRow {
+    position: absolute;
+    right: 20px;
+    top: 15px;
+    padding: 1px 7px;
+    display: inline-block;
+}
+.input-sm {
+    width: 100%;
+}
+.input-sm.margin-b {
+    margin-bottom: 8px;
+}
+input.form-control.update_checkbox, .forminp input[type="checkbox"] {
+    border-radius: 0px;
+    padding: 8px !important;
+    position: relative;
+}
+input.form-control.update_checkbox::before, .forminp input[type="checkbox"]::before {
+    position: absolute;
+    top: -9px;
+    left: -5px;
+    right: 0;
+    bottom: 0;
+    line-height: 20px;
+    width: 30px;
+    height: 30px;
+}
+input.form-control.update_checkbox:focus, .forminp input[type="checkbox"]:focus {
+    outline: none;
+}
+input#ns_order_shiping_line_item_enable {
+    margin-right: 10px;
+}
+.general-form-table tr {
+    display: flex;
+    align-items: center;
+}
+.general-form-table tr th, .general-form-table tr td {
+    width: 50% !important;
+}
+.general-form-table tr td.forminp.forminp-checkbox {
+    width: 40px !important;
+}
+td#promo_required_fields {
+    width: 100% !important;
+    padding: 0;
+}
+td#promo_required_fields fieldset input {
+    width: 46% !important;
+    float: left;
+    margin-right: 15px;
+}
+
+td.promo_required_fields{
+    display: none;
+}
+.ns_order_shiping_line_item{
+    display: none !important;
+    }
+.hidden_tr_input{
+    display: none !important;
+}
+td#promo_required_fields fieldset input:nth-child(2n+2) {
+    float: right;
+    margin-right: 0;
+}
+.general-form-table tr:first-child th {
+    margin: 0;
+    padding: 0;
+}
+.general-form-table tr td select, .general-form-table tr td input[type="text"] {
+    width: 100% !important;
+    display: block;
+    max-width: 100%;
+}
+.general-form-table tr td.forminp {
+    display: flex;
+    align-items: center;
+    height: 70px !important;
+}
+
+.general-form-table tr td.forminp fieldset, .general-form-table tr td.forminp span {
+    width: 100%;
+}   
+input[type=checkbox]:checked:before {
+    content: '';
+    display: block;
+    width: 10px;
+    height: 18px;
+    border: solid #337ab7;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+    left: 10px;
+    top: -5px;
+}
+
+
+#loader-wrapper {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 1000;
+}
+#loader {
+    display: block;
+    position: relative;
+    left: 50%;
+    top: 50%;
+    width: 150px;
+    height: 150px;
+    margin: -75px 0 0 -75px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #3498db;
+    -webkit-animation: spin 2s linear infinite; /* Chrome, Opera 15+, Safari 5+ */
+    animation: spin 2s linear infinite; /* Chrome, Firefox 16+, IE 10+, Opera */
+}
+ 
+#loader:before {
+    content: "";
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    right: 5px;
+    bottom: 5px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #e74c3c;
+    -webkit-animation: spin 3s linear infinite; /* Chrome, Opera 15+, Safari 5+ */
+      animation: spin 3s linear infinite; /* Chrome, Firefox 16+, IE 10+, Opera */
+}
+ 
+#loader:after {
+    content: "";
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    right: 15px;
+    bottom: 15px;
+    border-radius: 50%;
+    border: 3px solid transparent;
+    border-top-color: #f9c922;
+    -webkit-animation: spin 1.5s linear infinite; /* Chrome, Opera 15+, Safari 5+ */
+      animation: spin 1.5s linear infinite; /* Chrome, Firefox 16+, IE 10+, Opera */
+}
+.notify{
+    top:5% !important;
+    text-align: center;
+    font-size: 15px;
+    font-weight: bolder;
+}
+
+.required:after {
+    content:" *";
+    color: red;
+}
+
+.required{
+    content:" *";
+    color: black !important;
+}
+ 
+@-webkit-keyframes spin {
+    0%   {
+        -webkit-transform: rotate(0deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+        -ms-transform: rotate(0deg);  /* IE 9 */
+        transform: rotate(0deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+    100% {
+        -webkit-transform: rotate(360deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+        -ms-transform: rotate(360deg);  /* IE 9 */
+        transform: rotate(360deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+}
+@keyframes spin {
+    0%   {
+        -webkit-transform: rotate(0deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+        -ms-transform: rotate(0deg);  /* IE 9 */
+        transform: rotate(0deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+    100% {
+        -webkit-transform: rotate(360deg);  /* Chrome, Opera 15+, Safari 3.1+ */
+        -ms-transform: rotate(360deg);  /* IE 9 */
+        transform: rotate(360deg);  /* Firefox 16+, IE 10+, Opera */
+    }
+}
+
+.radio-input input[type=radio]  {
+    /*margin: 0 0 !important;*/
+    margin-top: 3px  !important;
+    line-height: normal  !important;
+}
+.radio-input  {
+    height: 40px !important;
+}
+
+/************************************************/
+/***************Sunil CSS start here*************/
+#wrap .nav-tab {
+    padding: 15px 15px;
+    color: #fff;
+    background: #455f65;
+    border-color: #455f65;
+    margin: 0 10px 0 0;
+}
+
+#wrap .nav-tab.nav-tab-active, #wrap .nav-tab:hover {
+    background: #d22d2d;
+    border-color: #d22d2d;
+    text-decoration: none;
+}
+#tab-general_settings, 
+#tab-inventory_settings, 
+#tab-customer_settings, 
+#tab-order_settings, #tab-logs, #tab-help{
+    box-shadow: 0 0 10px #ccc;
+    margin:  0 0;
+    padding: 20px 5px;
+}
+#wrap {
+    width: 98%;
+}
+.notice {
+    margin: 0 15px 20px;
+    box-shadow: 0 0 10px #ccccccba;
+    border-left: 6px solid !important;
+    padding: 10px 15px;
+    border-color: #d22d2d !important;
+    border: 0px;
+}
+.notice h4 {
+    font-size: 14px;
+}
+.dashicons, .dashicons-before:before{vertical-align: text-bottom;}
+.tooltip.dashicons-before.dashicons-editor-help {
+    color: #d22d2d;
+}
+
+.btn, .button-primary {
+    background: #455f65;
+    border: 0px;
+    padding: 10px 20px;
+}
+
+input#test_api_creds {
+    background: #d22d2d;
+}
+
+.btn:hover {
+    background: #d22d2d;
+}

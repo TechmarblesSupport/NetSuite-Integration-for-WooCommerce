@@ -1,0 +1,952 @@
+<?php
+
+require_once TMWNI_DIR . 'inc/NS_Toolkit/src/NetSuiteService.php';
+foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
+	require_once $filename;
+}
+use NetSuite\Classes\GetServerTimeRequest;
+use NetSuite\NetSuiteService;
+use NetSuite\Classes\Customer;
+use NetSuite\Classes\SalesOrder;
+
+
+
+class TMWNI_Admin_Loader {
+
+	private $netsuiteParameters;
+
+	private $cust_woo_order_fields = [
+		'id',
+		'customer_note', // The billing address first name.
+		'billing_first_name', // The billing address first name.
+		'billing_last_name', // The billing address last name.
+		'billing_company', // The billing address company.
+		'billing_address_1', // The first line of the billing address.
+		'billing_address_2', // The second line of the billing address.
+		'billing_city', // The city of the billing address.
+		'billing_state', // The state of the billing address.
+		'billing_postcode', // The postcode of the billing address.
+		'billing_country', // The country of the billing address.
+		'billing_phone', // The billing phone number.
+		'billing_email', // The billing email.
+		'shipping_first_name', // The shipping address first name.
+		'shipping_last_name', // The shipping address last name.
+		'shipping_company', // The shipping address company.
+		'shipping_address_1', // The first line of the shipping address.
+		'shipping_address_2', // The second line of the shipping address.
+		'shipping_city', // The city of the shipping address.
+		'shipping_state', // The state of the shipping address.
+		'shipping_postcode', // The postcode of the shipping address.
+		'shipping_country', // The country of the shipping address.
+		'shipping_method', // Order Shipping Method
+		'cart_discount', // Total amount of discount.
+		'cart_discount_tax', // Total amount of discount applied to taxes.
+		'customer_user', // User ID who the order belongs to. 0 for guests.
+		'order_key', // Random key/password unqique to each order.
+		// 'order_discount', // Stored after tax discounts pre-2.3. Now @deprecated.
+		'order_tax', // Stores order tax total.
+		'order_shipping_tax', // Stores shipping tax total.
+		'order_shipping', // Stores shipping total.
+		'order_total', // Stores order total.
+		'order_currency', // Stores currency code used for the order.
+		'payment_method', // method ID.
+		'payment_method_title', // Name of the payment method used.
+		// 'customer_ip_address', // Customer IP Address.
+		// 'customer_user_agent' // Customer User agent.
+	];
+	// user_id,email custom fields and woo customer class magic variables
+	private $cust_woo_customer_fields = [
+		'user_id',
+		'country',
+		'state',
+		'email',
+		'phone',
+		'postcode',
+		'city',
+		'address_1',
+		'address_2',
+		'company',
+		'shipping_country',
+		'shipping_state',
+		'shipping_postcode',
+		'shipping_city',
+		'shipping_address_1',
+		'shipping_address_2',
+		'is_vat_exempt',
+		'calculated_shipping'
+	];
+	//This array contains all required conditional mappings
+	private $cust_prefinedCondMapping = [
+		[
+			'type' => 1,
+			'operator' => 3,
+			'ns_field_key' => 'entityid',
+			'wc_field_key' => 'email',
+			'wc_field_value_prefix' => '',
+			'required' => 1
+		]
+	];
+
+	
+
+	private static $instance = null;
+
+	public static function getInstance() {
+		if (null === self::$instance) {
+			self::$instance = new TMWNI_Admin_loader();
+		}
+		return self::$instance;
+	}
+	// Consturct Function
+	public function __construct() {
+
+		// this will create the admin menu page
+		add_action('admin_menu', array($this, 'TMWNIAdminMenu'));
+
+			//ajax for saving plugin admin settings
+		add_action('wp_ajax_load_tmwni_logs', array($this, 'getLogs'));
+			//ajax for verifying amazon FBA settings
+		add_action('admin_post_save_tm_ns_settings', array($this, 'tmwniHanldeActions'));
+
+
+		add_action('add_meta_boxes', array($this, 'add_meta_box'));
+
+		add_action('wp_ajax_tm_clear_logs', array($this, 'clearAllApiLogs'));
+
+		//ajax for getting conditional mapping template
+		add_action('wp_ajax_get_conditional_mapping_template', array($this, 'getConditionalMappingTemplate'));
+
+		//ajax for saving plugin admin settings
+		add_action('wp_ajax_tm_netsuite_cm_save', array($this, 'saveConditionalMappingForm'));
+
+		add_action( 'edit_user_profile', array($this, 'extra_user_profile_fields' ) );
+
+		 add_action('wp_ajax_tm_validate_ns_credentials', array($this, 'validateCredentials'));
+
+
+	}
+
+	public function validateCredentials() {
+		$return = array();
+		$return['status'] = 0;
+		if (TMWNI_Settings::areCredentialsDefined()) {
+			$ns_service = new NetSuiteService();
+			$GetServerTimeRequest = new GetServerTimeRequest();
+			$rtn_data =  $ns_service->getServerTime($GetServerTimeRequest);
+			if (isset($rtn_data->getServerTimeResult->status->isSuccess) && 1 == $rtn_data->getServerTimeResult->status->isSuccess) {
+				$return['status'] = 0;
+				$return['message'] = 'Congrats. API connection is successful.';
+			} else {
+				$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
+			}
+		} else {
+			$return['message'] = "API Credentials are not defined.Please 'enter & save' API credentials first";
+		}
+		echo json_encode($return);
+		die;
+	}
+
+	public function extra_user_profile_fields( $user ) { ?>
+
+		<table class="form-table">
+			<tr>
+				<th><label for="ns_id"><?php esc_attr_e('NetSuite Internal ID'); ?></label></th>
+				<td>
+					<input name="ns_customer_internal_id" id="ns_id" value="
+					<?php 
+					if ( !empty(get_the_author_meta( 'ns_customer_internal_id', $user->ID )) ) {
+echo esc_attr(get_the_author_meta( 'ns_customer_internal_id', $user->ID )); } 
+					?>
+					" disabled>
+					<br />
+				</td>
+			</tr>
+		</table>
+	<?php 
+	} 
+
+	public static function saveConditionalMappingForm() {
+		$request = $_REQUEST;
+
+		if (is_array($request['cm'])) {
+			$request = array_values($request['cm']);
+			
+
+			//validate data
+			foreach ($request as $key => $mapping) {
+				switch ($mapping['operator']) {
+					case 0:
+						if (count($request) > 1) {
+							unset($request[$key]);
+							die(json_encode([
+							'type' => 'blankfield',
+							'msg' => 'Required fields cannot be left blank'
+							]));
+						}
+						break;
+					case 1:
+						if (!isset($mapping['wc_field_key']) || '' == $mapping['wc_field_key'] || !isset($mapping['wc_field_value']) || '' == $mapping['wc_field_value'] || !isset($mapping['ns_field_key']) || '' == $mapping['ns_field_key'] || !isset($mapping['ns_field_value']) ||  '' == $mapping['ns_field_value']) {
+							unset($request[$key]);
+							die(json_encode([
+							'type' => 'blankfield',
+							'msg' => 'Required fields cannot be left blank'
+							]));
+						}
+						break;
+					case 2:
+						if (!isset($mapping['ns_field_key']) || '' == $mapping['ns_field_key'] || !isset($mapping['ns_field_value']) || '' == $mapping['ns_field_value']) {
+							unset($request[$key]);
+							die(json_encode([
+							'type' => 'blankfield',
+							'msg' => 'Required fields cannot be left blank'
+							]));
+						}
+						break;
+					case 3:
+						if (( '0' == $mapping['type'] ) || ( '0' == $mapping['wc_field_key'] ) || '' == $mapping['wc_field_key'] || !isset($mapping['ns_field_key']) || '' == $mapping['ns_field_key']) {
+							unset($request[$key]);
+							die(json_encode([
+							'type' => 'blankfield',
+							'msg' => 'Required fields cannot be left blank'
+							]));
+						}
+						break;
+					default:
+					unset($request[$key]);
+						break;
+				}
+			}
+			$option_tag = isset($_REQUEST['cm_type']) ? sanitize_text_field($_REQUEST['cm_type']) . '_cm_options' : '';//customer_cm_options,order_cm_options
+			update_option($option_tag, $request);
+
+			die(json_encode([
+				'type' => 'success',
+			]));
+		}
+		die(json_encode([
+			'type' => 'Error',
+			'msg' => 'Invalid Request'
+		]));
+	}
+
+
+	private function getTemplate( $type, $operator, $index = 1, $mapping = [], $tab = '', $attr_type = '', $cm_wc_field_key = '', $cm_wc_field_value = '', $cm_wc_where_op = '' ) {
+		if ('customer_settings' == $tab) {
+			$this->netsuiteParameters =  new Customer();
+		} elseif ('order_settings' == $tab) {
+			$this->netsuiteParameters = new SalesOrder();
+		}
+
+
+		$template = '';
+
+		switch ($operator) {
+			case 1:
+				if (empty($mapping)) {
+					$mapping['wc_field_key'] = '';
+					$mapping['wc_field_value'] = '';
+					$mapping['ns_field_key'] = '';
+					$mapping['ns_field_value'] = '';
+					$mapping['ns_field_type_value'] ='';
+					$mapping['wc_where_op'] = '';
+				}
+
+				if (2 == $type) {
+					$template = '<tr><td><span class="h6 required">Customer Meta Field</span><br/>';
+					$template .= '<input class="form-control input-sm" type="text" name="cm[' . $index . '][wc_field_key]" value="' . ( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) . '"></div>';
+				} elseif (1 == $type) {
+					$template = '<tr><td><span class="h6 required">Customer Field</span><br/>';
+					$template .= $this->getWooCustomerFieldsTemplate($index, $mapping, $cm_wc_field_key);
+
+					$template .= '</div>';
+				} elseif (3 == $type) {
+					$template = '<tr><td><span class="h6 required">Order Field</span><br/>';
+					$template .= $this->getWooOrderFieldsTemplate($index, $mapping, $cm_wc_field_key);
+					$template .= '</div>';
+				} elseif (4 == $type) {
+					$template = '<tr><td><span class="h6 required">Order Meta Field</span><br/>';
+					$template .= '<input class="form-control input-sm" type="text" name="cm[' . $index . '][wc_field_key]" value="' . ( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) . '"></div>';
+				}
+
+			$template .= $this->getWCFieldCompOperatorTemplate($index, $mapping, $cm_wc_where_op);
+
+			$template .= '<td><span class="h6 required">WC Field Value</span><br/><input class="form-control input-sm" type="text" name="cm[' . $index . '][wc_field_value]" value="' . ( '' != $cm_wc_field_value ? $cm_wc_field_value : $mapping['wc_field_value'] ) . '"></td></tr>';
+			$template .= '<tr>';
+
+			$template .= $this->getNetSuiteAttributeTypeTemplate($index, $attr_type, $mapping);
+
+
+				if (1 ==$attr_type ||  isset($mapping['ns_attr_type']) && 1==$mapping['ns_attr_type']) {
+					$template .= $this->getNetSuiteDefaultFieldTemplate($index, $mapping);
+				} elseif (2 == $attr_type ||  isset($mapping['ns_attr_type']) && 2 == $mapping['ns_attr_type']) {
+					$template .= $this->getNetSuiteCustomFieldTemplate($index, $mapping);
+				}
+			$template .= '</tr>';
+				break;
+			case 2:
+				if (empty($mapping)) {
+					$mapping['ns_field_key'] = '';
+					$mapping['ns_field_value'] = '';
+					$mapping['ns_field_type_value'] ='';
+					$mapping['ns_attr_type'] = '';
+				}
+			$template .= '<tr>';
+
+			$template .= $this->getNetSuiteAttributeTypeTemplate($index, $attr_type, $mapping);
+
+				if (1 ==$attr_type ||  isset($mapping['ns_attr_type']) && 1==$mapping['ns_attr_type']) {
+					$template .= $this->getNetSuiteDefaultFieldTemplate($index, $mapping);
+				} elseif (2 == $attr_type ||  isset($mapping['ns_attr_type']) && 2 == $mapping['ns_attr_type'] ) {
+					$template .= $this->getNetSuiteCustomFieldTemplate($index, $mapping);
+				}
+			$template .= '</tr>';
+
+				break;
+			case 3:
+				if (empty($mapping)) {
+					$mapping['wc_field_key'] = '';
+					$mapping['ns_field_key'] = '';
+					$mapping['wc_field_value_prefix'] = '';
+					$mapping['ns_field_type_value'] ='';
+				}
+
+			$template .= '<tr>';
+
+			$template .= $this->getNetSuiteAttributeTypeTemplate($index, $attr_type, $mapping);
+
+
+			//NETSUITE Default Field
+				if (1 ==$attr_type ||  isset($mapping['ns_attr_type']) && 1==$mapping['ns_attr_type']) {
+					$template .= '<tr><td><span class="h6 required">NS Field</span><br/><select class="form-control input-sm ns-field-key" name="cm[' . $index . '][ns_field_key]" style="width:190px;" >';
+
+					foreach ($this->netsuiteParameters::$paramtypesmap as $key => $value) {
+						if ('RecordRef' == $value || 'string' == $value || 'boolean' == $value || 'dateTime' == $value|| 'float' == $value|| 'integer' == $value) {
+							if ($key == $mapping['ns_field_key']) {
+								$template .= '<option data-type="' . $value . '" value="' . $key . '" selected>' . $key . '(' . $value . ')</option>';
+							} else {
+								$template .= '<option data-type="' . $value . '" value="' . $key . '">' . $key . '(' . $value . ')</option>';
+
+							}
+						}
+					}
+					$template .= '</select></td>';
+					$template .= $this->getWooFieldTypeTemplate($type, $index, $mapping);
+					$template.= '<td><input class="ns-field-type" type="hidden" name="cm[' . $index . '][ns_field_type_value]" value="' . ( isset($mapping['ns_field_type_value']) ? $mapping['ns_field_type_value']: '' ) . '"></td>';
+					$template .= '</tr>';
+				} elseif (2 == $attr_type ||  isset($mapping['ns_attr_type']) && 2 ==$mapping['ns_attr_type'] ) { //NETSUITE Custom Fields
+					$template .= '<tr><td><span class="h6 required">NS Field</span><br/><input class="form-control input-sm ns-field-key" name="cm[' . $index . '][ns_field_key]" style="width:190px;" value="' . $mapping['ns_field_key'] . '"></td>';
+					$template .= $this->getWooFieldTypeTemplate($type, $index, $mapping);
+					$template .= $this->getNetSuiteFieldTypeTemplate($index, $mapping);
+					$template .= '</tr>';
+				}
+
+				break;
+			default:
+				break;
+		}
+
+		return $template;
+	}
+
+
+	private function getNetSuiteDefaultFieldTemplate( $index, $mapping) {
+		$template = '<td><span class="h6 required">NS Field</span><br/><select class="form-control input-sm ns-field-key" name="cm[' . $index . '][ns_field_key]">';
+		
+		$template .= '<option value="">Please Select</option>';
+
+		foreach ($this->netsuiteParameters::$paramtypesmap as $key => $value) {
+
+			if ('RecordRef' == $value || 'string' == $value|| 'boolean' == $value|| 'dateTime' == $value|| 'float' == $value|| 'integer' == $value) {
+				
+				if ($key == $mapping['ns_field_key']) {
+					$template .= '<option data-type="' . $value . '" value="' . $key . '" selected>' . $key . '(' . $value . ')</option>';
+				} else {
+					$template .= '<option data-type="' . $value . '" value="' . $key . '">' . $key . ' (' . $value . ')</option>';
+				}
+			}
+
+		}
+		$template.= '</select></td><td><span class="h6 required">NS Field Value</span><br/><input class="form-control input-sm ns-field-value" type="text" name="cm[' . $index . '][ns_field_value]" value="' . $mapping['ns_field_value'] . '"></td>';
+
+
+		// $template.= $this->getNetSuiteFieldTypeTemplate($index,$mapping);
+		$template.= '<td><input class="ns-field-type" type="hidden" name="cm[' . $index . '][ns_field_type_value]" value="' . ( isset($mapping['ns_field_type_value']) ? $mapping['ns_field_type_value']: '' ) . '"></td>';
+
+
+		return $template;
+	}
+
+	private function getNetSuiteCustomFieldTemplate( $index, $mapping) {
+
+		$template = $this->getNetSuiteFieldTypeTemplate($index, $mapping);
+
+		$template .= '<td><span class="h6 required">NS Field</span><br/><input class="form-control input-sm ns-field-key" name="cm[' . $index . '][ns_field_key]" value="' . $mapping['ns_field_key'] . '"></td><td><span class="h6 required">NS Field Value</span><br/><input class="form-control input-sm ns-field-value" type="text" name="cm[' . $index . '][ns_field_value]" value="' . $mapping['ns_field_value'] . '"></td>';
+
+
+		return $template;
+	}
+
+
+	private function getNetSuiteFieldTypeTemplate( $index, $mapping) {
+	   return "<td><span class='h6 required'>NS Field Type</span><br/>
+                   <select class='form-control input-sm ns-field-type' name='cm[" . $index . "][ns_field_type_value]'>
+                       <option value='customcurrdatefield' " . ( ( isset($mapping['ns_field_type_value']) && 'customcurrdatefield' == $mapping['ns_field_type_value'] ) ? 'selected':'' ) . ">Custom CurrDate Field</option>
+                       <option value='customdateTime' " . ( ( isset($mapping['ns_field_type_value']) && 'customdateTime' == $mapping['ns_field_type_value'] ) ? 'selected':'' ) . ">Custom Date Time</option>
+                       <option value='customboolean' " . ( ( isset($mapping['ns_field_type_value']) && 'customboolean' == $mapping['ns_field_type_value'] ) ? 'selected':'' ) . ">Custom Boolean</option>
+                       <option value='customstringfield' " . ( ( isset($mapping['ns_field_type_value']) && 'customstringfield' == $mapping['ns_field_type_value'] ) ? 'selected':'' ) . " >Custom String Field</option>
+                       <option value='customselectfield' " . ( ( isset($mapping['ns_field_type_value']) && 'customselectfield' == $mapping['ns_field_type_value'] ) ? 'selected':'' ) . " >Custom Select Field</option>
+                       <option value='custommultiselectfield' " . ( ( isset($mapping['ns_field_type_value']) && 'custommultiselectfield'==$mapping['ns_field_type_value'] ) ? 'selected':'' ) . " >Custom Multi-Select Field</option>
+                       <option value='customrecordref' " . ( ( isset($mapping['ns_field_type_value']) && 'customrecordref'==$mapping['ns_field_type_value'] ) ? 'selected':'' ) . ' >Custom Record Ref.</option>
+                   </select>
+                </td>';
+
+	}
+
+	private function getWCFieldCompOperatorTemplate( $index, $mapping, $cm_wc_where_op) {
+		return "</td><td><span class='h6 required'>Where</span><br/>
+                   <select class='form-control input-sm ns-field-type' name='cm[" . $index . "][wc_where_op]'>
+                       <option value=''>Please Select</option>
+                       <option value='is' " . ( ( isset($mapping['wc_where_op']) && 'is' == $mapping['wc_where_op'] ) ? 'selected':( ( 'is' == $cm_wc_where_op ) ? 'selected' : '' ) ) . ">IS</option>
+                       <option value='isnot' " . ( ( isset($mapping['wc_where_op']) && 'isnot' == $mapping['wc_where_op'] ) ? 'selected': ( ( 'isnot' == $cm_wc_where_op ) ? 'selected' : '' ) ) . " >IS NOT</option>
+                       <option value='contains' " . ( ( isset($mapping['wc_where_op']) && 'contains'==$mapping['wc_where_op'] )  ? 'selected': ( ( 'contains' == $cm_wc_where_op ) ? 'selected' : '' ) ) . ">CONTAINS</option>
+                       <option value='doesnotcontain' " . ( ( isset($mapping['wc_where_op']) &&'doesnotcontain' == $mapping['wc_where_op'] ) ? 'selected':( ( 'doesnotcontain' ==  $cm_wc_where_op ) ? 'selected' : '' ) ) . '>DOES NOT CONTAINS</option>
+                   </select>
+                </td>';
+	}
+
+	private function getWooCustomerFieldsTemplate( $index, $mapping, $cm_wc_field_key = '') {
+
+	 $template = '<select class="wc_fieldkey" name="cm[' . $index . '][wc_field_key]">';
+	 $template .= "<option value='0'>Select a customer field</option>";
+		foreach ($this->cust_woo_customer_fields as $value) {
+			if (( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) == $value) {
+			 $template .= "<option value='" . $value . "' selected>" . $value . '</option>';
+			} else {
+			$template .= "<option value='" . $value . "'>" . $value . '</option>';
+			}
+		}
+	 $template .= '</select></div>';
+
+	 return $template;
+
+	}
+
+
+	private function getWooOrderFieldsTemplate( $index, $mapping, $cm_wc_field_key = '') {
+
+		$template = '<select class="wc_fieldkey" name="cm[' . $index . '][wc_field_key]">';
+		$template .= "<option value='0'>Select a order field</option>";
+		foreach ($this->cust_woo_order_fields as $value) {
+			if (( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) == $value) {
+				$template .= "<option value='" . $value . "' selected>" . $value . '</option>';
+			} else {
+				$template .= "<option value='" . $value . "'>" . $value . '</option>';
+			}
+		}
+		$template .= '</select>';
+
+		return $template;
+
+	}
+
+
+	private function getNetSuiteAttributeTypeTemplate( $index, $attr_type, $mapping) {
+		$template = '<td width="20%"><span class="required">Attribute type</span><br/><select name="cm[' . $index . '][ns_attr_type]" class="form-control input-sm attr_type"><option value="0">Please Select</option>';
+
+		$template .= isset($mapping['ns_attr_type']) && 1==$mapping['ns_attr_type'] || 1 ==$attr_type ? '<option value="1" selected>Default NetSuite Fields</option>': '<option value="1">Default NetSuite Fields</option>';
+		$template .= isset($mapping['ns_attr_type']) && 2==$mapping['ns_attr_type'] || 2 ==$attr_type ? '<option value="2" selected>Custom NetSuite Field</option></select></td>' : '<option value="2">Custom NetSuite Field</option></select></td>';
+
+		return $template;
+	}
+
+
+	private function getWooFieldTypeTemplate( $type, $index, $mapping, $cm_wc_field_key = '') {
+
+		$template = '';
+
+		if (2 == $type) {
+			$template .= '<td><span class="h6">Prefix to append - </span><br/>';
+			$template .= '<input class="col-xs-4 input-sm" type="text" name="cm[' . $index . '][wc_field_value_prefix]" value="' . $mapping['wc_field_value_prefix'] . '"></td><td><span class="h6 required">Customer Meta Field</span><br/><input class="col-xs-8 input-sm" type="text" name="cm[' . $index . '][wc_field_key]" value="' . ( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) . '">';
+		} elseif (1 == $type) {
+			$template .= '<td><span class="h6">Prefix to append - </span><br/>';
+			$template .= '<input class="col-xs-4 input-sm " type="text" name="cm[' . $index . '][wc_field_value_prefix]" value="' . $mapping['wc_field_value_prefix'] . '"></td><td><span class="h6 required">Customer Field</span><br/>';
+
+			$template .= $this->getWooCustomerFieldsTemplate($index, $mapping, $cm_wc_field_key);
+
+			$template .= '</div>';
+		} elseif (3 == $type) {
+			$template .= '<td><span class="h6">Prefix to append - </span><br/>';
+			$template .= '<input class="col-xs-4 input-sm" type="text" name="cm[' . $index . '][wc_field_value_prefix]" value="' . $mapping['wc_field_value_prefix'] . '"></td><td><span class="h6 required">Order Field</span><br/>';
+			$template .= $this->getWooOrderFieldsTemplate($index, $mapping, $cm_wc_field_key);
+
+			$template .= '</div>';
+		} elseif (4 == $type) {
+			$template .= '<td><span class="h6">Prefix to append - </span><br/>';
+			$template .= '<input class="col-xs-4 input-sm" type="text" name="cm[' . $index . '][wc_field_value_prefix]" value="' . $mapping['wc_field_value_prefix'] . '"></td><td><span class="h6 required">Order Meta Field</span><br/><input class="col-xs-8 input-sm" type="text" name="cm[' . $index . '][wc_field_key]" value="' . ( '' != $cm_wc_field_key ? $cm_wc_field_key : $mapping['wc_field_key'] ) . '"></div>';
+		}
+		$template .= '</td>';
+
+		return $template;
+	}
+
+
+
+
+	/**
+	 * Ajax function for getting conditional mapping template
+	 */
+	public function getConditionalMappingTemplate() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+				die('conditional-mapping-nonce-error'); 
+		}
+		$request = $_POST;		
+		$return = [];
+		$return['status'] = 0;
+
+		if (!empty($request) &&
+			!empty($request['operator']) &&
+			!empty($request['index'])) {
+			$template = $this->getTemplate($request['type'], $request['operator'], $request['index'], [], $request['tab'], $request['attr_type'], $request['cm_wc_field_key'], $request['cm_wc_field_value'], $request['cm_wc_where_op']);
+			if (!empty($template)) {
+				$return['status'] = 1;
+				$return['template'] = $template;
+			}
+		}
+
+	echo json_encode($return);
+	die;
+	}
+
+	public function add_meta_box() {
+		add_meta_box('woocommerce-netsuite-order-sync', __('NetSuite Sales Order Synchronization', 'woocommerce-netsuite-order-sync'), array($this, 'meta_box_sales_order'), 'shop_order', 'side', 'high');
+	}
+
+	/**
+	 * Show the meta box for shipment info on the order page
+	 *
+	 * Access public
+	 */
+	public function meta_box_sales_order() {
+		global $post;
+
+		$sales_order_internalID = get_post_meta($post->ID, esc_attr(TMWNI_Settings::$ns_order_id), true);
+		if (empty($sales_order_internalID)) {
+			echo "<p><span class='replace-content'>This Sales Order for this order has not been synced with NetSuite.</span><br/> Use order action 'Sync to NetSuite' to sync it</p>";
+		} else {
+			echo "<p><span class='replace-content'>This Sales Order for this order has been successfully transferred to NetSuite. </span><br/><br/><b>NS Internal Order ID : </b>" . esc_attr($sales_order_internalID);
+			$sales_order_externalID = get_post_meta($post->ID, esc_attr(TMWNI_Settings::$ns_external_order_id), true);
+			if (!empty($sales_order_externalID)) {
+				echo '<br><b>NS Order ID : </b>' . esc_attr($sales_order_externalID);
+			}
+		}
+
+		
+	}
+
+	
+
+	public function tmwniHanldeActions() {
+		global $wpdb;
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+				die('Nonce Error'); 
+		}
+		if (!empty($_POST['save_post'])) { 
+			$amazon_fba_settings = $_POST;
+			unset($amazon_fba_settings['current_tab_id']);
+			unset($amazon_fba_settings['action']);
+			unset($amazon_fba_settings['save_post']);
+
+			if (!isset($_POST['ns_order_shiping_line_item_enable'])) {
+				unset($_POST['ns_order_shiping_line_item']);
+			}
+
+			if (!isset($_POST['ns_coupon_netsuite_sync'])) {
+				if (isset($_POST['ns_promo_custform_id'])) {
+					unset($_POST['ns_promo_custform_id']);	
+				}
+				if (isset($_POST['ns_promo_discount_id'])) {
+					unset($_POST['ns_promo_custform_id']);	
+				}
+			}
+			if (isset($_POST['current_tab_id'])) {
+				TMWNI_Settings::saveOption(sanitize_text_field($_POST['current_tab_id']), $amazon_fba_settings);
+
+			}
+
+			$url = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : '';
+			wp_safe_redirect($url);
+			exit();
+		}
+	}
+
+	public function getLogs() {
+
+		global $wpdb;
+
+		require_once TMWNI_DIR . '/inc/datatables.php';
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('Logs Nonce Error'); 
+		}		
+
+		$request = $_POST;
+		$binding = array();
+		if (!empty($request)) {
+
+			$datatables = new Datatables();
+
+			$columns = array(
+				array('db' => 'log.id as id',
+					'dt' => 0,
+					'db_ref' => 'id'
+				),
+				array('db' => 'log.created_at as created_at',
+					'dt' => 1,
+					'db_ref' => 'created_at'
+				),
+				array(
+					'db' => 'log.operation as operation',
+					'dt' => 2,
+					'db_ref' => 'operation'
+				),
+				array(
+					'db' => 'log.status as status',
+					'dt' => 3,
+					'db_ref' => 'status'
+				),
+				array(
+					'db' => 'log.notes as notes',
+					'dt' => 4,
+					'db_ref' => 'notes'
+				),
+				array(
+					'db' => 'log.woo_object_id as woo_object_id',
+					'dt' => 5,
+					'db_ref' => 'woo_object_id'
+				),
+			);
+
+
+			$limit = $datatables->limit($request, $columns);
+			$order = $datatables->order($request, $columns);
+			$where = $datatables->filter($request, $columns, $binding);
+			$table_name = $wpdb->prefix . 'tm_woo_netsuite_logs';
+			$wpdb->netsuite_logs = $wpdb->prefix . 'tm_woo_netsuite_logs';
+
+
+			$limit_arr = explode(' ', $limit);
+			$order_arr = explode(' ', $order);
+			
+			
+
+			//Main queries for  get the data Based on Conditions
+			
+			//By id
+			if ('id'==$order_arr[2] && 'ASC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY id ASC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY id ASC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+			if ('id'==$order_arr[2] && 'DESC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY id DESC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY id DESC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+
+			//By Created Date
+			if ('created_at'==$order_arr[2] && 'ASC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY created_at ASC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY created_at ASC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+			if ('created_at'==$order_arr[2] && 'DESC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY created_at DESC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY created_at DESC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+
+			//By Operation Condition
+			if ('operation'==$order_arr[2] && 'ASC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY operation ASC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY operation ASC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+			if ('operation'==$order_arr[2] && 'DESC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY operation DESC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY operation DESC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+
+			//By Status
+			if ('status'==$order_arr[2] && 'ASC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY status ASC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY status ASC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+			if ('status'==$order_arr[2] && 'DESC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY status DESC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY status DESC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+
+			//By woo_object_id 
+			if ('woo_object_id'==$order_arr[2] && 'ASC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY woo_object_id ASC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY woo_object_id ASC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+			if ('woo_object_id'==$order_arr[2] && 'DESC'==$order_arr[3]) {
+				if (!empty($where)) {
+					$where_arr = explode(' ', $where);
+					$where = str_replace("'", '', $where_arr[4]);
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log WHERE (log.status  LIKE %s OR log.notes  LIKE %s) ORDER BY woo_object_id DESC limit %d, %d", $where, $where, $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				} else {
+					$data = $wpdb->get_results($wpdb->prepare("SELECT SQL_CALC_FOUND_ROWS log.id as id,log.created_at as created_at,log.operation as operation,log.status as status,log.notes as notes,log.woo_object_id as woo_object_id FROM {$wpdb->netsuite_logs} as log  ORDER BY woo_object_id DESC limit %d, %d", $limit_arr[1], $limit_arr[2]), ARRAY_A);
+				}
+				
+			}
+
+			$data_filter = $wpdb->get_results('SELECT FOUND_ROWS() as filtered_rows');
+				//total filtered records
+			$recordsFiltered = $data_filter[0]->filtered_rows;
+
+			$recordsTotal = $recordsFiltered;
+
+				//array to be returned
+			$unprocessed_rows = array();
+			if ($recordsTotal > 0) {
+				$unprocessed_rows = $datatables->data_output($columns, (array) $data);
+			}
+
+
+
+				//json to be returned
+			echo json_encode(array(
+				'draw' => intval($request['draw']),
+				'recordsTotal' => intval($recordsTotal),
+				'recordsFiltered' => intval($recordsFiltered),
+				'data' => $unprocessed_rows
+			));
+			die;
+		}
+		die;
+	}
+
+	public function getServerTime() {
+		echo esc_html(gmdate('Y-m-d h:i'));
+		die;
+	}
+
+		 //Add setting page link to menu
+	public function TMWNIAdminMenu() {
+		$menu = add_menu_page('TM NetSuite', 'TM NetSuite', 'manage_options', 'tmwni', array($this, 'TMWNISettingsTabs'));
+		add_action('admin_print_styles-' . $menu, array($this, 'tm_woo_ns_css'));
+
+		add_action('admin_print_scripts-' . $menu, array($this, 'tm_woo_ns_js'));
+	}
+
+	
+	public function TMWNISettingsTabs() {
+		if (empty($_GET['tab'])) {
+			$current_tab_id = TMWNI_Settings::$default_tab;
+		} else {
+			$current_tab_id = sanitize_text_field($_GET['tab']);
+		}
+
+		if (strpos($current_tab_id, 'settings')) {
+			$options = TMWNI_Settings::getTabSettings($current_tab_id);
+
+			$option_tag = '';
+
+			if ('order_settings' == $current_tab_id) {
+				$woo_order_statuses = wc_get_order_statuses();
+				$option_tag = 'order_cm_options';
+			}
+
+			if ('customer_settings' == $current_tab_id) {
+				$option_tag = 'customer_cm_options';
+			}
+
+			
+
+			$cm_options = get_option($option_tag, null);
+
+			// pr($cm_options);die('**');
+
+			if (!empty($cm_options)) {
+				foreach ($cm_options as $key => $mapping) {
+
+					$index = $key + 1;
+
+					// if (!empty($mapping['operator']) && ($mapping['operator'] == 2) ) {
+					if (!empty($mapping['operator'])) {
+						if (!empty(self::$prefinedCondMapping)) {
+							foreach (self::$prefinedCondMapping as $pre_mapping_key => $pre_mapping) {
+								if ($mapping['operator'] == $pre_mapping['operator'] && $mapping['type'] == $pre_mapping['type'] && $mapping['ns_field_key'] == $pre_mapping['ns_field_key']) { //check for required mapping
+									$required_key_present[] = $pre_mapping_key;
+									$cm_options[$key]['required'] = 1;
+								}
+							}
+						}  
+
+						if ( isset($mapping['type']) ) {
+							$cm_options[$key]['template'] = $this->getTemplate($mapping['type'], $mapping['operator'], $index, $mapping, $current_tab_id);
+						} else {
+							$cm_options[$key]['template'] = $this->getTemplate(2, $mapping['operator'], $index, $mapping, $current_tab_id);
+						}
+
+					} else {
+						unset($cm_options[$key]);
+					}
+				}
+			}
+
+			if ('inventory_settings' == $current_tab_id) {
+				$inventory_sync_frequencies = TMWNI_Settings::$inventory_sync_frequency;
+			}
+			if ('general_settings' == $current_tab_id) {
+				$hma_methods = TMWNI_Settings::$hma_method;
+			}
+		}
+
+			//GET TAB CONTENT
+		$tab_content_file = TMWNI_DIR . 'inc/admin/tab-templates/admin-tab-template-' . $current_tab_id . '.php';
+		if (file_exists($tab_content_file)) {
+			ob_start();
+			include $tab_content_file;
+			$tab_content = ob_get_contents();
+			ob_end_clean();
+		} else {
+			$tab_content = 'No Content :)';
+		}
+
+		require_once TMWNI_DIR . 'inc/admin/admin-page.php';
+		return;
+	}
+
+
+	public function tm_woo_ns_css() {
+		if (empty($_GET['tab'])) {
+			$current_tab_id = TMWNI_Settings::$default_tab;
+		} else {
+			$current_tab_id = sanitize_text_field($_GET['tab']);
+		}
+	// if($current_tab_id=='order_settings'){
+		wp_enqueue_style( 'tmwni_admin_bootstrap_settings_css', TMWNI_URL . '/assets/css/bootstrap.min.css', false, '1.1', 'all' );
+		// }
+		wp_enqueue_style( 'tmwni_admin_settings_css', TMWNI_URL . 'assets/css/admin-settings.css', false, '1.1', 'all' );
+		
+		//Select2 CSS
+		wp_enqueue_style( 'tmwni_admin_settings_select2_css', TMWNI_URL . 'assets/css/select2.min.css', false, '1.1', 'all' );
+		
+		//Notify/Prettify CSS
+		wp_enqueue_style( 'tmwni_admin_settings_notifycss', TMWNI_URL . 'assets/css/notify.css', false, '1.1', 'all' );
+		wp_enqueue_style( 'tmwni_admin_settings_prettifycss', TMWNI_URL . 'assets/css/prettify.css', false, '1.1', 'all' );
+		
+		if ('logs' == $current_tab_id) {
+			wp_enqueue_style('tmwni-admin-log-css', TMWNI_URL . '/assets/css/jquery.dataTables.min.css', false, '1.1', 'all');
+		}
+	}
+
+	public function tm_woo_ns_js() {
+		if (empty($_GET['tab'])) {
+			$current_tab_id = TMWNI_Settings::$default_tab;
+		} else {
+			$current_tab_id = sanitize_text_field($_GET['tab']);
+		}
+
+		 wp_enqueue_script('tmwni-bootstrap-js', TMWNI_URL . '/assets/js/bootstrap3.3.7.min.js', false, '1.1', 'all');
+
+		//Notify/Prettify JS
+		wp_enqueue_script('tmwni-admin-settings-notifyjs', TMWNI_URL . '/assets/js/notify.js', false, '1.1', 'all');
+
+		wp_enqueue_script('tmwni-admin-settings-prettifyjs', TMWNI_URL . '/assets/js/prettify.js', false, '1.1', 'all');
+
+		if (strpos($current_tab_id, 'settings')) {
+
+			wp_enqueue_script('tmwni-admin-settings-js', TMWNI_URL . '/assets/js/admin-settings.js', false, '1.1', 'all');
+			
+			//Select2 JS 
+			wp_enqueue_script('tmwni-admin-settings-select2-js', TMWNI_URL . '/assets/js/select2.min.js', false, '1.1', 'all');
+			
+			wp_localize_script('tmwni-admin-settings-js', 'tmwni_admin_settings_js', 
+				array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce('security_nonce')));
+
+		}
+		if ('logs' == $current_tab_id) {
+
+			wp_enqueue_script('tmwni-jquery-dataTables-js', TMWNI_URL . '/assets/js/jquery.dataTables.min.js', false, '1.1', 'all');
+			wp_enqueue_script('tmwni-admin-log', TMWNI_URL . '/assets/js/admin-logs.js', false, '1.1', 'all');
+				// in JavaScript, object properties are accessed as ajax_object.ajax_url, ajax_object.we_value
+			wp_localize_script('tmwni-admin-log', 'tmwni_admin_log', array('ajax_url' => admin_url('admin-ajax.php'),'nonce'=>wp_create_nonce('security_nonce')));
+		}
+
+	}
+
+	public function clearAllApiLogs() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+				die('clear api logs'); 
+		}
+
+		if (!empty($_POST['form_data']) && 'clearLogs' == $_POST['form_data']) {
+			global $wpdb;
+			$table = $wpdb->prefix . 'tm_woo_netsuite_logs';
+			$result = $wpdb->get_results($wpdb->prepare('TRUNCATE TABLE ' . $wpdb->prefix . 'tm_woo_netsuite_logs'));
+			if (empty($result)) {
+				exit('success');
+			} else {
+				exit('failure');
+			}
+		}
+	}
+}
+
+function TMWNI_Admin_loader() {
+	return TMWNI_Admin_Loader::getInstance();
+}
+
+TMWNI_Admin_loader();
