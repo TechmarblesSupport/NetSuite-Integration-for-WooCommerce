@@ -5,6 +5,7 @@
 	<h2>
 		 Product/Inventory Sync Settings
 	</h2>
+	<div class="inventory-table-main">
 	<table class="form-table">
 	<tbody>
 		<tr valign="top" class="">
@@ -58,6 +59,23 @@ echo 'checked ';}
 		</tr>
 		<tr valign="top" class="">
 			<th scope="row" class="titledesc">
+				Override Manage Stock
+				<div class="tooltip dashicons-before dashicons-editor-help">
+				<span class="tooltiptext">If checked enable stock management at product level</span>
+				</div>
+			</th>
+			<td class="forminp forminp-checkbox">
+				<input name="overrideManageStock" 
+				<?php 
+				if (isset($options['overrideManageStock']) && 'on' == $options['overrideManageStock']) {
+echo 'checked ';} 
+				?>
+				 id="overrideManageStock" type="checkbox">
+				<label for="overrideManageStock">(Note : This will only work when inventory sync is enabled.)</label>                    
+			</td>
+		</tr>
+		<tr valign="top" class="">
+			<th scope="row" class="titledesc">
 				Price Level Name
 				<div class="tooltip dashicons-before dashicons-editor-help">
 				<span class="tooltiptext">Mention the price level of the product Example Base Price , Online Price</span>
@@ -103,11 +121,41 @@ echo 'selected ';}
 		   <input type="submit" class="button-primary" name="save_post" value="Save Settings" /> 
 		</th>
 		</tr>
+		<?php 
+		if (isset($options['enableInventorySync']) && 'on' == $options['enableInventorySync'] || ( isset($options['enablePriceSync']) && 'on' == $options['enablePriceSync'] )) {
+
+			?>
 		<tr>
 		<th scope="row" class="titledesc">
-		<a class="button-primary" href="?ns_manual_update_inventory=1">Manual update inventory and(or) price</a>
+		<a class="button-primary manual-update-inventory">Manual update inventory and(or) price</a> <div class="inventory-loader"></div>
 		</th>
 		</tr>
+		<?php } ?>
 		</tbody>
 	</table>
+	
+</div>
+	<div id="inventoy_progress">
+				
+				<span id="right_progress" style="display: none">
+					<div class="progress_processed">
+						<span>Processed <span class="processed_count">0</span> of <span id="of">0</span> records</span>
+					</div>
+					<div class="progress_details">
+						
+						
+						<span class="progress_details_item updated_count" style="">
+							Updated <span class="updated_records_count">0</span>
+						</span>
+						<span class="progress_details_item skipped_count">
+							Skipped <span class="skipped_records_count">0</span>
+						</span>
+					</div>
+				</span>
+			</div>
+			<fieldset class="inventory-logs">
+				<legend class="log-head">Log</legend>
+			<div class="log-list">
+			</div>
+		</fieldset>
 </form>

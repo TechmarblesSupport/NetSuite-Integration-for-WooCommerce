@@ -1,5 +1,5 @@
 <div class="heading">
-    <h2>NetSuite API Logs<h2>
+    <h2>NetSuite API Logs</h2>
     <button id="clearlogs" class="btn btn-danger" value="clearLogs">Clear All Logs</button>
 </div>
 <hr/>

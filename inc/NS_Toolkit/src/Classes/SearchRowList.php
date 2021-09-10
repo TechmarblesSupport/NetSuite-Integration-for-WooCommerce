@@ -5,7 +5,7 @@
  *
  * New content:
  *
- * @package    ryanwinchester/netsuite-php
+ * Package    ryanwinchester/netsuite-php
  * Copyright  Copyright (c) Ryan Winchester
  * License    http://www.apache.org/licenses/LICENSE-2.0 Apache-2.0
  * Link       https://github.com/netsuitephp/netsuite-php

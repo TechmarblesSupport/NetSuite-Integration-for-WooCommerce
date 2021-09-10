@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NetSuite Integration for WooCommerce
  * Description: Plugin will be used to add/update woocommerce orders and customers to Netsuite.
- * Version: 1.0.3
+ * Version: 1.0.5
  * Author: Manish Gautam
  * Text Domain: TMWNI
  * WC requires at least: 2.2
@@ -21,20 +21,30 @@ if ( ! function_exists( 'woothemes_queue_update' ) ) {
 // Plugin updates
 woothemes_queue_update( plugin_basename( __FILE__ ), '774402b21708c84be5bee56906b069f1', '8277071' );
 
-// // WC active check
-// if ( ! is_woocommerce_active() ) {
-// 	return;
-// }
+// WC active check
+if ( ! is_woocommerce_active() ) {
+	return;
+}
+
+if (!function_exists('pr')) {
+	function pr( $data) {
+		echo '<pre>';
+		print_r($data);
+		echo '</pre>';
+	}
+}
 
 	// Put your plugin code here
 add_action('plugins_loaded', 'init_tm_netsuite_integration', 1);
 
 function init_tm_netsuite_integration() {
+
 	if ( !in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
 		require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
 		deactivate_plugins( '/netsuite-integration-for-woocommerce/netsuite-integration-for-woocommerce.php', true );
 	}
 
+	
 	define('TMWNI_DIR', plugin_dir_path(__FILE__));
 	define('TMWNI_URL', plugin_dir_url(__FILE__));
 
@@ -53,6 +63,9 @@ function init_tm_netsuite_integration() {
 		// // Global for backwards compatibility.
 		$GLOBALS['TMWNI_Loader'] = TMWNI_Loader();
 	}
+
+
+	do_action('tm_netsuite_loaded');
 }
 
 
@@ -85,6 +98,24 @@ function install_tm_netsuite_integration_plugin() {
 			`status` tinyint(4) NOT NULL,
 			`notes` text NOT NULL,
 			`woo_object_id` int(11) NULL,
+			PRIMARY KEY (`id`)
+		) $charset_collate;";
+		dbDelta($sql);
+		}
+
+		$dashboard_table_name = $wpdb->prefix . 'tm_woo_netsuite_auto_sync_order_status';
+		// Check if table empty
+		if ($wpdb->get_var($wpdb->prepare('show tables like %s', $dashboard_table_name)) != $dashboard_table_name) {
+			require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+			$sql = 'CREATE TABLE `' . $dashboard_table_name . "` (
+			`id` int(11) NOT NULL AUTO_INCREMENT,
+			`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+			`operation` varchar(100) NOT NULL,
+			`status` tinyint(4) NOT NULL,
+			`notes` text  NULL,
+			`woo_object_id` int(11) NOT NULL,
+			`ns_order_internal_id` int(11) NULL,
+			`ns_order_status` varchar(100) NULL,
 			PRIMARY KEY (`id`)
 		) $charset_collate;";
 		dbDelta($sql);

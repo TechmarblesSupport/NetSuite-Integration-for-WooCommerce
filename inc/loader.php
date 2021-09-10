@@ -1,5 +1,6 @@
 <?php
 require_once TMWNI_DIR . 'inc/NS_Toolkit/src/NetSuiteService.php';
+
 foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
 	require_once $filename;
 }
@@ -79,6 +80,10 @@ class TMWNI_Loader {
 				add_action('profile_update', array($this, 'profileUpdateNetSuiteCustomer'));
 			}
 
+			add_action('wp_ajax_manual_order_sync', array($this, 'ManualOrderSync'));
+
+
+
 			add_action('woocommerce_order_actions', array($this, 'sync_to_netsuite_action'));
 
 			add_action('woocommerce_order_action_sync_to_netsuite', array($this, 'sync_to_netsuite'));
@@ -147,6 +152,25 @@ class TMWNI_Loader {
 		return $actions;
 	}
 
+	public function ManualOrderSync() {
+		global $TMWNI_OPTIONS;
+
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('Order Logs Nonce Error'); 
+		}
+		
+		if (isset($_POST['order_id']) && !empty($_POST['order_id']) ) {
+			if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
+			$order_id = intval($_POST['order_id']);
+			$response = $this->addNetsuiteOrder($order_id);
+			esc_attr_e($response); 
+			}
+		}
+			
+
+	}
+
+
 	/**
 	 * User Update
 	 *
@@ -177,7 +201,7 @@ class TMWNI_Loader {
 	*/ 
 	public function sync_to_netsuite( $order) {
 		global $TMWNI_OPTIONS;
-	
+
 		if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
 			if (!is_object($order)) {
 				$this->addNetsuiteOrder($order);
@@ -191,7 +215,7 @@ class TMWNI_Loader {
 	}
 
 	/**
-	 * Hook function which will recieve customer id and pass it to net  update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);suite
+	 * Hook function which will recieve customer id and pass it to net  update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
 	 */
 	public function addUpdateNetsuiteCustomer( $customer_id, $order_id = 0) {
 	 
@@ -215,6 +239,8 @@ class TMWNI_Loader {
 				//check if customer already registered on netsuite
 				$customer_internal_id = $netsuiteCustomerClient->searchCustomer($woo_customer_data->data->user_email, $customer_id);
 			}
+
+
 			if (!empty($woo_customer_data->first_name) && !empty($woo_customer_data->last_name)) {
 				$first_name = $woo_customer_data->first_name;
 				$last_name = $woo_customer_data->last_name;
@@ -279,6 +305,9 @@ class TMWNI_Loader {
 					$al->addressbook->addressbookAddress->override = false;
 					$al->addressbook->addressbookAddress->state = $address['state'];
 					$al->addressbook->addressbookAddress->zip = $address['postcode'];
+
+
+					$al = apply_filters('tm_netsuite_customer_data', $al);
 
 					if (!empty($customer_internal_id)) {
 						$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $address['state'], $order_id);
@@ -359,6 +388,9 @@ class TMWNI_Loader {
 		$al->addressbook->addressbookAddress->zip = $cust_address['postcode'];
 
 		//update customer if it already exists on netsuite
+
+		$al = apply_filters('tm_netsuite_customer_data', $al);
+
 		if (!empty($customer_internal_id)) {
 			$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $cust_address['state'], $cust_order_id);
 		} else {
@@ -372,7 +404,7 @@ class TMWNI_Loader {
 	 *
 	*/ 
 	public function addNetsuiteOrder( $order_id) {
-		
+
 		global $TMWNI_OPTIONS;
 
 		require_once TMWNI_DIR . 'inc/order.php';
@@ -385,17 +417,26 @@ class TMWNI_Loader {
 		$user_id = $order->get_user_id();
 
 		$check_if_sent = get_post_meta($order_id, TMWNI_Settings::$ns_order_id, true);
+	
+
 		if (empty($check_if_sent)) {
 			if (0 == $user_id) {
 				$customer_internal_id = $this->addUpdateNetsuiteGuestCustomer($order);
+				if (!empty($customer_internal_id)) {
+					update_post_meta($order_id, TMWNI_Settings::$ns_guest_customer_id, $customer_internal_id);
+				}
 			} else {
 				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
 			}
 
 			//get required order data
+
 			$order_data = $this->getOrderData($order_id , TMWNI_Settings::$ns_rec_type_order);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data);
+
 			//set order id
 			$this->netsuiteOrderClient->order_id = $order_id;
+
 
 			if (0 != $customer_internal_id) {
 				//add order on netsuite
@@ -411,14 +452,16 @@ class TMWNI_Loader {
 			} else {
 				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
 			}
-
 			
 
 			//get required order data
 			$order_data = $this->getOrderData($order_id, TMWNI_Settings::$ns_rec_type_order);
-			$this->netsuiteOrderClient->updateOrder($order_data, $customer_internal_id, $check_if_sent);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data);
+
+			$order_netsuite_internal_id = $this->netsuiteOrderClient->updateOrder($order_data, $customer_internal_id, $check_if_sent);
+			
 		}
-		return;
+		return $order_netsuite_internal_id;
 	}
 
 	/**
@@ -428,8 +471,10 @@ class TMWNI_Loader {
 	public function getOrderData( $order_id, $rec_type) {
 		global $TMWNI_OPTIONS;
 		$data = array();
+		
 		//instance of woocommerce order class
 		$order = new WC_Order($order_id);
+		
 		//set other order related data
 		$data['order_id'] = $order_id;
 		$data['order'] = $order;
@@ -521,8 +566,10 @@ class TMWNI_Loader {
 			$items[$key]['qty'] = $order_item['qty'];
 			$items[$key]['total_tax'] = $order_item['total_tax'];
 			$items[$key]['locationId'] = $location_id;
+			$items[$key]['productId'] = $order_item['product_id'];
 		}
 		$items = array_reverse($items);
+		
 		return $items;
 	}
 

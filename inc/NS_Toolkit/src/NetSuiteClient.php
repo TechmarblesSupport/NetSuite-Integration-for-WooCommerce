@@ -11,6 +11,16 @@
  */
 namespace NetSuite;
 
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/samples/config.php');
+require_once('Logger.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/ApplicationInfo.php');
+ require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/Passport.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/Preferences.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/RecordRef.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/SearchPreferences.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/TokenPassport.php');
+require_once(TMWNI_DIR . '/inc/NS_Toolkit/src/Classes/TokenPassportSignature.php');
+
 use NetSuite\Classes\ApplicationInfo;
 use NetSuite\Classes\GetDataCenterUrlsRequest;
  use NetSuite\Classes\Passport;
@@ -21,15 +31,7 @@ use NetSuite\Classes\TokenPassport;
 use NetSuite\Classes\TokenPassportSignature;
 use SoapClient;
 use SoapHeader;
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/samples/config.php');
-require_once('Logger.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/ApplicationInfo.php');
- require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/Passport.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/Preferences.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/RecordRef.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/SearchPreferences.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/TokenPassport.php');
-require_once(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/TokenPassportSignature.php');
+
 
 
 

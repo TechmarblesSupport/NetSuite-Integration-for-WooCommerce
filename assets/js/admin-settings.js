@@ -10,9 +10,34 @@ function tm_ns_validateForm() {
 jQuery(document).ready(function ($) {
     $("#ns_promo_custform_id").attr('placeholder', 'NS Promo Custom Form ID' );
     $("#ns_promo_discount_id").attr('placeholder', 'NS Promo Discount ID' );
-    // $("#price_level_name").attr('placeholder', 'Price Level Name' );
 
 
+
+
+
+
+    // var tab = getUrlParameter('tab');
+    // console.log(tab);
+    // if(tab == 'general_settings'){
+    //     console.log('111');
+    //     $('.general-settings-tab').addClass('nav-tab-active');
+    // }else if(tab == 'help'){
+    //     console.log('helop');
+    //     $('.help-tab').addClass('nav-tab-active');
+    // }else{
+    //     console.log('33');
+    //     $('.setting-tab').addClass('nav-tab-active');
+    // }
+   
+
+
+
+    
+
+
+
+
+    
         makeSelectfieldsSelect2($);
         $('#ns_order_shiping_line_item_enable').click(function(){
             if($('#ns_order_shiping_line_item_enable:checked').length > 0){
@@ -62,15 +87,6 @@ jQuery(document).ready(function ($) {
 
             }
         });
-
-
-        // $('#enablePriceSync').click(function(){
-        //     if($('#enablePriceSync:checked').length > 0){
-        //         $("input[name='price_level_name']").prop('required',true);
-        //     }else{
-        //         $("input[name='price_level_name']").prop('required',false);
-        //     }
-        // });
         
         
         
@@ -381,3 +397,100 @@ function makeSelectfieldsSelect2($){
         }
     }); 
 }
+var timeOutId = 0;
+
+jQuery(document).on('click', '.manual-update-inventory',function(e){
+
+    jQuery(this).attr("disabled", true);
+    jQuery('.inventory-loader').css('display', 'inline-block');
+    jQuery.ajax({
+        type: "POST",
+        dataType: "json",
+        url: tmwni_admin_settings_js.ajax_url,
+        data: {action: "update_woo_inventory"},
+        
+        success: function(response){
+            if(response.success){
+                if(!jQuery('.progress').length){
+                    jQuery('.form-table').after('<div class="progress"><div class="progress-bar" role="progressbar" aria-valuenow="40" aria-valuemin="0" aria-valuemax="100" style="width:0%"><span class="sr-only">0% Complete</span></div></div>');
+                }
+                fetchWooInventoryStatus(response.total_count);
+
+            }
+        }
+    });
+});
+
+
+// var fetchWooInventoryStatus = function () {
+//         jQuery.ajax({
+//             type: "POST",
+//             url: tmwni_admin_settings_js.ajax_url,
+//             dataType: "json", 
+//             data: {action: "fetch_inventory_progress"},
+//             success: function (response) {
+//                 if (response == 'True') {
+//                     clearTimeout(timeOutId);
+//                 } else {
+//                     timeOutId = setTimeout(fetchWooInventoryStatus, 10000);
+//                     console.log("call");
+//                 }
+//             }
+//         });
+// }
+
+function fetchWooInventoryStatus(total_count){
+
+    jQuery.ajax({
+        type: "POST",
+        dataType: "json",
+        url: tmwni_admin_settings_js.ajax_url,
+        data: {action: "fetch_inventory_progress",nonce:tmwni_admin_settings_js.nonce},
+        // async: false,
+        success: function(response){
+            if(response.success){
+
+
+                var percent = response.processed_count / total_count * 100;
+                var html="<div class='progress-bar progress-bar-striped active' role='progressbar' aria-valuenow="+Math.ceil(percent)+" aria-valuemin='0' aria-valuemax='100' style='width:"+Math.ceil(percent)+"%'>"+Math.ceil(percent)+"%</div>";
+                jQuery(".progress").html(html);
+                jQuery('.inventory-loader').hide();
+                jQuery('.progress_processed').show();
+                jQuery('.processed_count').html(response.processed_count);
+                jQuery('#of').html(total_count);
+                jQuery('.progress_details').show();
+                jQuery('.updated_records_count').html(response.updated_count);
+                jQuery('.skipped_records_count').html(response.skus.length + response.empty_skus.length);
+                jQuery('.inventory-logs').show();
+                
+                jQuery('.log-list').html(response.logs);
+                jQuery('html, body').animate({
+                    scrollTop: jQuery(".inventory-logs").offset().top
+                }, 2000);
+                var $t = jQuery('.inventory-logs');
+                $t.animate({"scrollTop": jQuery('.inventory-logs')[0].scrollHeight}, "slow");
+
+
+            }
+        },
+        complete:function(response){
+            if(total_count === response.responseJSON.processed_count){
+               clearTimeout(timeOutId);
+               jQuery('.manual-update-inventory').attr("disabled", false);
+                jQuery('.progress').remove();
+
+           } else {
+            timeOutId = setTimeout(fetchWooInventoryStatus, 2000, total_count);
+        }
+    }
+
+});
+}
+
+
+
+
+
+
+
+

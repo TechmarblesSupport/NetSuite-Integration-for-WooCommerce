@@ -4,7 +4,6 @@
  * AND originally from the NetSuite PHP Toolkit.
  *
  * New content:
- *
  * Package    ryanwinchester/netsuite-php
  * Copyright  Copyright (c) Ryan Winchester
  * License    http://www.apache.org/licenses/LICENSE-2.0 Apache-2.0

@@ -14,7 +14,7 @@
  * Copyright  Copyright (c) NetSuite Inc.
  * License    https://raw.githubusercontent.com/netsuitephp/netsuite-php/master/original/NetSuite%20Application%20Developer%20License%20Agreement.txt
  *
- * @link       http://www.netsuite.com/portal/developers/resources/suitetalk-sample-applications.shtml
+ * Link       http://www.netsuite.com/portal/developers/resources/suitetalk-sample-applications.shtml
  */
 
 namespace NetSuite\Classes;

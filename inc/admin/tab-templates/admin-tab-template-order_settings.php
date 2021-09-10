@@ -1,6 +1,6 @@
 <div class="row">
 	<h3>Order Settings</h3>
-	<div class="col-md-6">
+	<div class="col-md-12">
 		<h4>General Settings</h4>
 		<form class="well"  action="admin-post.php" method="post" id="settings_tm_ns"> 
 			<input type="hidden" name="action" value="save_tm_ns_settings"> 
@@ -309,7 +309,7 @@ echo 'checked'; }
 </table>
 </form>
 </div>
-<div class="col-md-6">
+<div class="col-md-12">
 	<form class="tm_netsuite_ajax_form_save" role="form">
 		<h4>Order Conditional Mapping</h4>
 		<?php

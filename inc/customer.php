@@ -77,6 +77,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 		$request->searchRecord = $search;
 		try {
 			$searchResponse = $this->netsuiteService->search($request);
+			apply_filters('tm_ns_customer_response', $searchResponse);
 			return $this->handleAPISearchResponse($searchResponse, 'customer', $email);
 		} catch (SoapFault $e) {
 			$object = 'customer';
@@ -95,44 +96,56 @@ class CustomerClient extends CommonIntegrationFunctions {
 	 * Adding customer in Netsuite based on woocommerce customer data
 	 */
 	public function addCustomer( $customer_data, $add_list, $state, $order_id = 0) {
-		
-		global $TMWNI_OPTIONS;
+		$customer_sync_status = true;
+		$customer_sync_status  = apply_filters('tm_netsuite_customer_sync_status', $customer_sync_status, $customer_data, $add_list);
+		if (false != $customer_sync_status) {
 
-		$this->object_id = $customer_data['customer_id'];
+			global $TMWNI_OPTIONS;
 
-		$order = wc_get_order($order_id);
+			$this->object_id = $customer_data['customer_id'];
 
-		$customer = new Customer();
+			$order = wc_get_order($order_id);
 
-		$this->customerConditionalMapping($customer_data, $order);
+			$customer = new Customer();
 
-		$this->createRequest($customer, $customer_data);
-	   
-		$customer->addressbookList = $add_list;
+			$this->customerConditionalMapping($customer_data, $order);
 
-		if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
-			$customer->isPerson = false;
+			$this->createRequest($customer, $customer_data);
+
+			$customer->addressbookList = $add_list;
+
+			if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
+				$customer->isPerson = false;
 			$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
-		} else {
-			$customer->isPerson = true;
-			$customer->firstName = $customer_data['firstName'];
-			$customer->lastName = $customer_data['lastName'];
-		}
+			} else {
+				$customer->isPerson = true;
+				$customer->firstName = $customer_data['firstName'];
+				$customer->lastName = $customer_data['lastName'];
+			}
+
+		$customer = apply_filters('tm_add_request_customer_data', $customer);
+		
 
 		$request = new AddRequest();
 		$request->record = $customer;
+
+
 		// pr($request);die;
-		try {
-			$addResponse = $this->netsuiteService->add($request);
-			return $this->handleAPIAddResponse($addResponse, 'customer');
-		} catch (SoapFault $e) {
-			$object = 'customer';
-			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
-			$error_msg .= 'Error Message: ' . $e->getMessage();
+			try {
+				$addResponse = $this->netsuiteService->add($request);
+				if (1 == $addResponse->writeResponse->status->isSuccess) {
+					do_action('tm_netsuite_after_customer_add', $addResponse);
+				}
+				return $this->handleAPIAddResponse($addResponse, 'customer');
+			} catch (SoapFault $e) {
+				$object = 'customer';
+				$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
+				$error_msg .= 'Error Message: ' . $e->getMessage();
 
-			$this->handleLog(0, $this->object_id, $object, $error_msg);
+				$this->handleLog(0, $this->object_id, $object, $error_msg);
 
-			return 0;
+				return 0;
+			}
 		}
 	}
 
@@ -141,47 +154,61 @@ class CustomerClient extends CommonIntegrationFunctions {
 	 * Updating customer based on its internal id
 	 */
 	public function updateCustomer( $customer_data, $customer_internal_id, $add_list, $state, $order_id = 0) {
-		
-		global $TMWNI_OPTIONS;
+		$customer_sync_status = true;
+		$customer_sync_status  = apply_filters('tm_netsuite_customer_update_status', $customer_sync_status, $customer_data, $add_list);
+		if (false != $customer_sync_status) {
 
-		$this->object_id = $customer_data['customer_id'];
+			global $TMWNI_OPTIONS;
 
-		$order = wc_get_order($order_id);
+			$this->object_id = $customer_data['customer_id'];
 
-		$this->customerConditionalMapping($customer_data, $order, $customer_internal_id);
-		
-		$customer = new Customer();
+			$order = wc_get_order($order_id);
 
-		$this->createRequest($customer, $customer_data);
+			$this->customerConditionalMapping($customer_data, $order, $customer_internal_id);
 
-		$customer->addressbookList = $add_list;
+			$customer = new Customer();
 
-		if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
-			$customer->isPerson = false;
+			$this->createRequest($customer, $customer_data);
+
+			$customer->addressbookList = $add_list;
+
+			if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
+				$customer->isPerson = false;
 			$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
-		} else {
-			$customer->isPerson = true;
-			$customer->firstName = $customer_data['firstName'];
-			$customer->lastName = $customer_data['lastName'];
-		}
+			} else {
+				$customer->isPerson = true;
+				$customer->firstName = $customer_data['firstName'];
+				$customer->lastName = $customer_data['lastName'];
+			}
 
 		$customer->internalId = $customer_internal_id;
-	   
+
+
+		$customer = apply_filters('tm_update_request_customer_data', $customer);
+
+
 		$request = new UpdateRequest();
 		$request->record = $customer;
 
-		
-		try {
-			$updateResponse = $this->netsuiteService->update($request);
-			return $this->handleAPIUpdateResponse($updateResponse, 'customer');
-		} catch (SoapFault $e) {
-			$object = 'customer';
-			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Update' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
-			$error_msg .= 'Error Message: ' . $e->getMessage();
 
-			$this->handleLog(0, $this->object_id, $object, $error_msg);
+		
+			try {
+				$updateResponse = $this->netsuiteService->update($request);
+				if (1 == $updateResponse->writeResponse->status->isSuccess) {
+					do_action('tm_netsuite_after_customer_update', $updateResponse);
+				}		
+				return $this->handleAPIUpdateResponse($updateResponse, 'customer');
+			} catch (SoapFault $e) {
+				$object = 'customer';
+				$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Update' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
+				$error_msg .= 'Error Message: ' . $e->getMessage();
+
+			
+				return 0;
+			}
+		} else {
 			return 0;
-		}
+		}	
 	}
 
 
@@ -355,7 +382,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 									if ('memo' == $mapping['wc_field_key'] || 'customer_note' == $mapping['wc_field_key']) {
 										$saved_value = $order->get_customer_note();
 									}
-									
+
 									if ('id' == $mapping['wc_field_key']) {
 										$saved_value = $order->get_id();
 									}
@@ -400,7 +427,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 									$customer_data['ns_customer_fields'][$mapping['ns_field_key']] = array('type'=>trim($mapping['ns_field_type_value']),'value'=>$mapping['ns_field_value']);
 								}
 							}
-							
+
 						}
 						break;
 					case 2:
@@ -426,7 +453,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 									if ('memo' == $mapping['wc_field_key'] || 'customer_note' == $mapping['wc_field_key']) {
 										$saved_value = $order->get_customer_note();
 									}
-									
+
 									if ('id' == $mapping['wc_field_key']) {
 										$saved_value = $order->get_id();
 									}

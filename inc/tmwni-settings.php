@@ -1,6 +1,7 @@
 <?php
 
 class TMWNI_Settings {
+	public static $ns_inventory_log_file = 'netsuite-inventory-log.html';
 
 	public static $ns_order_id = 'ns_order_internal_id';
 	public static $ns_rec_type_order = 'order';
@@ -8,6 +9,7 @@ class TMWNI_Settings {
 	public static $ns_external_order_id = 'ns_order_external_id';
 	public static $ns_product_id = 'ns_product_internal_id';
 	public static $ns_customer_id = 'ns_customer_internal_id';
+	public static $ns_guest_customer_id = 'ns_guest_customer_internal_id';
 	public static $page_id = 'tmwni';
 	public static $error_log_file_name = 'tmwni_errors.log';
 	public static $inventory_sku_lot_limit = 50;
@@ -278,6 +280,8 @@ class TMWNI_Settings {
 		'order_settings' => 'Order Settings',
 		'logs' => 'NetSuite API Logs',
 		'help' => 'Help & Support',
+		'dashboard' => 'Dashboard',
+
 	];
 	public static $inventory_sync_frequency = [
 		'hourly' => 'Hourly',

@@ -18,6 +18,8 @@
 
 namespace NetSuite\Classes;
 
+require_once('SearchRow.php');
+
 class SearchRowBasic extends SearchRow {
 	public static $paramtypesmap = array(
 	);

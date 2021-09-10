@@ -49,7 +49,7 @@ use NetSuite\Classes\DoubleCustomFieldRef;
 
 
 
- 
+
 
 
 
@@ -125,7 +125,7 @@ class OrderClient extends CommonIntegrationFunctions {
 				return $item_internal_id;
 			}
 		} catch (SoapFault $e) {
-		  $error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Search' operation failed for WooCommerce " . $object . ', ID = ' . $object_id . '. ';
+			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Search' operation failed for WooCommerce " . $object . ', ID = ' . $object_id . '. ';
 			if (!empty($variation_id)) {
 				$error_msg .= 'Product ID: ' . $product_id . '. ';
 			}
@@ -141,137 +141,155 @@ class OrderClient extends CommonIntegrationFunctions {
 	 * Adding sales order to Netsuite
 	 */
 	public function addOrder( $order_data, $customer_internal_id) {
-		global $TMWNI_OPTIONS;
+		$order_sync_status = true;
+		$order_sync_status  = apply_filters('tm_netsuite_order_sync_status', $order_sync_status, $order_data);
+		if (false != $order_sync_status) {
+			global $TMWNI_OPTIONS;
 
-		$order = $order_data['order'];
-		$order_coupons = $order->get_used_coupons();
-		$this->object_id = $order_data['order_id'];
-		$so = new SalesOrder();
-		
+			$order = $order_data['order'];
+			$order_coupons = $order->get_used_coupons();
+			$this->object_id = $order_data['order_id'];
+			$so = new SalesOrder();
+
 		//order customer
-		$so->entity = new RecordRef();
-		$so->entity->internalId = $customer_internal_id;
+			$so->entity = new RecordRef();
+			$so->entity->internalId = $customer_internal_id;
 
-		$this->salesOrderConditionalMapping($order_data, $order);
+			$this->salesOrderConditionalMapping($order_data, $order);
 
-		$this->createRequest($so, $order_data);
+			$this->createRequest($so, $order_data);
 
 		//currency
-		$order_currency = $order_data['order_currency'];
-		if (isset($TMWNI_OPTIONS['ns_order_woo_currency']) && !empty($TMWNI_OPTIONS['ns_order_woo_currency'])) {
-			$saved_order_currency = array_combine($TMWNI_OPTIONS['ns_order_woo_currency'], $TMWNI_OPTIONS['ns_order_netsuite_currency_internal_id']);
-			if (isset($saved_order_currency[$order_currency]) && !empty($saved_order_currency[$order_currency])) {
-				$so->currency = $saved_order_currency[$order_currency];
+			$order_currency = $order_data['order_currency'];
+			if (isset($TMWNI_OPTIONS['ns_order_woo_currency']) && !empty($TMWNI_OPTIONS['ns_order_woo_currency'])) {
+				$saved_order_currency = array_combine($TMWNI_OPTIONS['ns_order_woo_currency'], $TMWNI_OPTIONS['ns_order_netsuite_currency_internal_id']);
+				if (isset($saved_order_currency[$order_currency]) && !empty($saved_order_currency[$order_currency])) {
+					$so->currency = $saved_order_currency[$order_currency];
+				}
 			}
-		}
 
-		if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
-			$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
-		} else {
-			$ns_billing_country = '';
-		}
+			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
+				$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
+			} else {
+				$ns_billing_country = '';
+			}
 		//set po field 
-		$so->billingAddress = new Address();
-		$so->billingAddress->addr1 = $order_data['billing_address']['address_1'];
-		$so->billingAddress->addr2 = $order_data['billing_address']['address_2'];
-		$so->billingAddress->addressee = $order_data['billing_address']['first_name'] . ' ' . $order_data['billing_address']['last_name'];
-		$so->billingAddress->attention = $order_data['billing_address']['company'];
-		$so->billingAddress->city = $order_data['billing_address']['city'];
-		$so->billingAddress->state = $order_data['billing_address']['state'];
-		$so->billingAddress->zip = $order_data['billing_address']['postcode'];
-		$so->billingAddress->country = $ns_billing_country;
+			$so->billingAddress = new Address();
+			$so->billingAddress->addr1 = $order_data['billing_address']['address_1'];
+			$so->billingAddress->addr2 = $order_data['billing_address']['address_2'];
+			$so->billingAddress->addressee = $order_data['billing_address']['first_name'] . ' ' . $order_data['billing_address']['last_name'];
+			$so->billingAddress->attention = $order_data['billing_address']['company'];
+			$so->billingAddress->city = $order_data['billing_address']['city'];
+			$so->billingAddress->state = $order_data['billing_address']['state'];
+			$so->billingAddress->zip = $order_data['billing_address']['postcode'];
+			$so->billingAddress->country = $ns_billing_country;
 
 
-		if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
-			$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
-		} else {
-			$ns_shipping_country = '';
-		}
-		$so->shippingAddress = new Address();
-		$so->shippingAddress->addr1 = $order_data['shipping_address']['address_1'];
-		$so->shippingAddress->addr2 = $order_data['shipping_address']['address_2'];
-		$so->shippingAddress->addressee = $order_data['shipping_address']['first_name'] . ' ' . $order_data['shipping_address']['last_name'];
-		$so->shippingAddress->attention = $order_data['shipping_address']['company'];
-		$so->shippingAddress->city = $order_data['shipping_address']['city'];
-		$so->shippingAddress->state = $order_data['shipping_address']['state'];
-		$so->shippingAddress->zip = $order_data['shipping_address']['postcode'];
-		$so->shippingAddress->country = $ns_shipping_country;
-
-		$order_payment_method = $order_data['order_payment_method'];
-		if (isset($TMWNI_OPTIONS['ns_order_woo_payment_method']) && !empty($TMWNI_OPTIONS['ns_order_woo_payment_method'])) {
-			$saved_order_payment_method = array_combine($TMWNI_OPTIONS['ns_order_woo_payment_method'], $TMWNI_OPTIONS['ns_order_netsuite_payment_method']);
-			if (isset($saved_order_payment_method[$order_payment_method]) && !empty($saved_order_payment_method[$order_payment_method])) {
-				$so->paymentMethod = new RecordRef();
-				$so->paymentMethod->internalId = $saved_order_payment_method[$order_payment_method];
+			if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
+				$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
+			} else {
+				$ns_shipping_country = '';
 			}
-		}
+			$so->shippingAddress = new Address();
+			$so->shippingAddress->addr1 = $order_data['shipping_address']['address_1'];
+			$so->shippingAddress->addr2 = $order_data['shipping_address']['address_2'];
+			$so->shippingAddress->addressee = $order_data['shipping_address']['first_name'] . ' ' . $order_data['shipping_address']['last_name'];
+			$so->shippingAddress->attention = $order_data['shipping_address']['company'];
+			$so->shippingAddress->city = $order_data['shipping_address']['city'];
+			$so->shippingAddress->state = $order_data['shipping_address']['state'];
+			$so->shippingAddress->zip = $order_data['shipping_address']['postcode'];
+			$so->shippingAddress->country = $ns_shipping_country;
 
-		$so->itemList = new SalesOrderItemList();
+			$order_payment_method = $order_data['order_payment_method'];
+			if (isset($TMWNI_OPTIONS['ns_order_woo_payment_method']) && !empty($TMWNI_OPTIONS['ns_order_woo_payment_method'])) {
+				$saved_order_payment_method = array_combine($TMWNI_OPTIONS['ns_order_woo_payment_method'], $TMWNI_OPTIONS['ns_order_netsuite_payment_method']);
+				if (isset($saved_order_payment_method[$order_payment_method]) && !empty($saved_order_payment_method[$order_payment_method])) {
+					$so->paymentMethod = new RecordRef();
+					$so->paymentMethod->internalId = $saved_order_payment_method[$order_payment_method];
+				}
+			}
 
-		$so->itemList->item = $this->_setOrderItems($order_data['items'], $order_data['total_shipping']);
-		
-		if (isset($TMWNI_OPTIONS['ns_coupon_netsuite_sync']) && !empty($TMWNI_OPTIONS['ns_coupon_netsuite_sync'])) {
+			$so->itemList = new SalesOrderItemList();
 
-			$promoCodes = array();
 
-			$order = new WC_Order($order_data['order_id']);
+			$items = $this->_setOrderItems($order_data['items'], $order_data['total_shipping']);
 
-			$applied_coupons = $order->get_used_coupons();
+			$so->itemList->item = $items;			
+			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping']);
 
-			if (!empty($applied_coupons)) {
-				foreach ( $applied_coupons as $key => $value) {
-					if (isset($TMWNI_OPTIONS['ns_promo_discount_id']) && !empty($TMWNI_OPTIONS['ns_promo_discount_id']) ) {
-						$promoCodes[] = $this->_addNSpromo($value, $TMWNI_OPTIONS['ns_promo_discount_id']);
-					} else {
-						$promoCodes[] = $this->_addNSpromo($value);
+
+
+			if (isset($TMWNI_OPTIONS['ns_coupon_netsuite_sync']) && !empty($TMWNI_OPTIONS['ns_coupon_netsuite_sync'])) {
+
+				$promoCodes = array();
+
+				$order = new WC_Order($order_data['order_id']);
+
+				$applied_coupons = $order->get_used_coupons();
+
+				if (!empty($applied_coupons)) {
+					foreach ( $applied_coupons as $key => $value) {
+						if (isset($TMWNI_OPTIONS['ns_promo_discount_id']) && !empty($TMWNI_OPTIONS['ns_promo_discount_id']) ) {
+							$promoCodes[] = $this->_addNSpromo($value, $TMWNI_OPTIONS['ns_promo_discount_id']);
+						} else {
+							$promoCodes[] = $this->_addNSpromo($value);
+						}
 					}
 				}
+
+				if ( isset($promoCodes) && !empty($promoCodes) ) {
+
+					$so->canHaveStackable = 1;
+
+					$promoListObj = new PromotionsList();
+					$promoListObj->promotions = array();
+					foreach ($promoCodes as $codeKey => $codeValue) {
+
+						$recRef = new RecordRef();
+						$recRef->internalId = $codeValue;
+						$promoListObj->promotions[$codeKey] = new Promotions();
+						$promoListObj->promotions[$codeKey]->promoCode = $recRef;
+					}
+
+					$so->promotionsList = $promoListObj;
+
+				}
 			}
 
-			if ( isset($promoCodes) && !empty($promoCodes) ) {
 
-				$so->canHaveStackable = 1;
+			if (isset($TMWNI_OPTIONS['ns_order_prefix']) && !empty($TMWNI_OPTIONS['ns_order_prefix'])) {
+				$ns_public_order_id = $TMWNI_OPTIONS['ns_order_prefix'] . $order_data['order_id'];
+			} else {
+				$ns_public_order_id = $order_data['order_id'];
+			}
 
-				$promoListObj = new PromotionsList();
-				$promoListObj->promotions = array();
-				foreach ($promoCodes as $codeKey => $codeValue) {
+			update_post_meta($order_data['order_id'], TMWNI_Settings::$ns_external_order_id, $ns_public_order_id);
 
-					$recRef = new RecordRef();
-					$recRef->internalId = $codeValue;
-					$promoListObj->promotions[$codeKey] = new Promotions();
-					$promoListObj->promotions[$codeKey]->promoCode = $recRef;
+
+			$so = apply_filters('tm_add_request_order_data', $so);		
+			$request = new AddRequest();
+			$request->record = $so;
+
+			try {
+
+				$addResponse = $this->netsuiteService->add($request);
+				if (1 == $addResponse->writeResponse->status->isSuccess) {
+					$order_internal_id = $addResponse->writeResponse->baseRef->internalId;
+					do_action('tm_netsuite_after_order_add', $order_data, $customer_internal_id, $order_internal_id);
 				}
 
-				$so->promotionsList = $promoListObj;
+				return $this->handleAPIAddResponse($addResponse, 'order');
+			} catch (SoapFault $e) {
+				$object = 'order';
 
+				$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
+				$error_msg .= 'Error Message: ' . $e->getMessage();
+
+				$this->handleLog(0, $this->object_id, $object, $error_msg);
+
+				return 0;
 			}
-		}
-
-
-		if (isset($TMWNI_OPTIONS['ns_order_prefix']) && !empty($TMWNI_OPTIONS['ns_order_prefix'])) {
-			$ns_public_order_id = $TMWNI_OPTIONS['ns_order_prefix'] . $order_data['order_id'];
-		} else {
-			$ns_public_order_id = $order_data['order_id'];
-		}
-
-		update_post_meta($order_data['order_id'], TMWNI_Settings::$ns_external_order_id, $ns_public_order_id);
-		
-		$request = new AddRequest();
-		$request->record = $so;
-
-		try {
-			$addResponse = $this->netsuiteService->add($request);
-			return $this->handleAPIAddResponse($addResponse, 'order');
-		} catch (SoapFault $e) {
-			$object = 'order';
-
-			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
-			$error_msg .= 'Error Message: ' . $e->getMessage();
-
-			$this->handleLog(0, $this->object_id, $object, $error_msg);
-
-			return 0;
-		}
+		}	
 	}
 
 	/**
@@ -281,110 +299,138 @@ class OrderClient extends CommonIntegrationFunctions {
 	public function updateOrder( $order_data, $customer_internal_id, $order_internal_id) {
 		global $TMWNI_OPTIONS;
 
+		$order_sync_status = true;
 
-		$order = $order_data['order'];
-		$order_coupons = $order->get_used_coupons();
-		$this->object_id = $order_data['order_id'];
+		$order_sync_status  = apply_filters('tm_netsuite_order_update_status', $order_sync_status, $order_data, $order_sync_status);
 
-		$so = new SalesOrder();
+		if (false != $order_sync_status) {
 
-		$this->salesOrderConditionalMapping($order_data, $order, $order_internal_id);
 
-		$this->createRequest($so, $order_data);
-		
-		if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
-			$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
-		} else {
-			$ns_billing_country = '';
-		}
+			$order = $order_data['order'];
+			$order_coupons = $order->get_used_coupons();
+			$this->object_id = $order_data['order_id'];
+
+			$so = new SalesOrder();
+
+			$this->salesOrderConditionalMapping($order_data, $order, $order_internal_id);
+
+			$this->createRequest($so, $order_data);
+
+			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
+				if (isset(TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']])) {
+					$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
+				} else {
+					$ns_billing_country = $order_data['billing_address']['country'];
+				}
+				
+			} else {
+				$ns_billing_country = '';
+			}
+
+
 		//set po field 
-		$so->billingAddress = new Address();
-		$so->billingAddress->addr1 = $order_data['billing_address']['address_1'];
-		$so->billingAddress->addr2 = $order_data['billing_address']['address_2'];
-		$so->billingAddress->addressee = $order_data['billing_address']['first_name'] . ' ' . $order_data['billing_address']['last_name'];
-		$so->billingAddress->attention = $order_data['billing_address']['company'];
-		$so->billingAddress->city = $order_data['billing_address']['city'];
-		$so->billingAddress->state = $order_data['billing_address']['state'];
-		$so->billingAddress->zip = $order_data['billing_address']['postcode'];
-		$so->billingAddress->country = $ns_billing_country;
+			$so->billingAddress = new Address();
+			$so->billingAddress->addr1 = $order_data['billing_address']['address_1'];
+			$so->billingAddress->addr2 = $order_data['billing_address']['address_2'];
+			$so->billingAddress->addressee = $order_data['billing_address']['first_name'] . ' ' . $order_data['billing_address']['last_name'];
+			$so->billingAddress->attention = $order_data['billing_address']['company'];
+			$so->billingAddress->city = $order_data['billing_address']['city'];
+			$so->billingAddress->state = $order_data['billing_address']['state'];
+			$so->billingAddress->zip = $order_data['billing_address']['postcode'];
+			$so->billingAddress->country = $ns_billing_country;
 
 
-		if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
-			$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
-		} else {
-			$ns_shipping_country = '';
-		}
-		$so->shippingAddress = new Address();
-		$so->shippingAddress->addr1 = $order_data['shipping_address']['address_1'];
-		$so->shippingAddress->addr2 = $order_data['shipping_address']['address_2'];
-		$so->shippingAddress->addressee = $order_data['shipping_address']['first_name'] . ' ' . $order_data['shipping_address']['last_name'];
-		$so->shippingAddress->attention = $order_data['shipping_address']['company'];
-		$so->shippingAddress->city = $order_data['shipping_address']['city'];
-		$so->shippingAddress->state = $order_data['shipping_address']['state'];
-		$so->shippingAddress->zip = $order_data['shipping_address']['postcode'];
-		$so->shippingAddress->country = $ns_shipping_country;
+			if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
+				if (isset(TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']])) {
+					$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
+				} else {
+					$ns_shipping_country = $order_data['shipping_address']['country'];
+				}
+			} else {
+				$ns_shipping_country = '';
+			}
+			$so->shippingAddress = new Address();
+			$so->shippingAddress->addr1 = $order_data['shipping_address']['address_1'];
+			$so->shippingAddress->addr2 = $order_data['shipping_address']['address_2'];
+			$so->shippingAddress->addressee = $order_data['shipping_address']['first_name'] . ' ' . $order_data['shipping_address']['last_name'];
+			$so->shippingAddress->attention = $order_data['shipping_address']['company'];
+			$so->shippingAddress->city = $order_data['shipping_address']['city'];
+			$so->shippingAddress->state = $order_data['shipping_address']['state'];
+			$so->shippingAddress->zip = $order_data['shipping_address']['postcode'];
+			$so->shippingAddress->country = $ns_shipping_country;
 
-		$so->itemList = new SalesOrderItemList();
+			$so->itemList = new SalesOrderItemList();
 
-		$so->itemList->item = $this->_setOrderItems($order_data['items'], $order_data['total_shipping']);
-		if (isset($TMWNI_OPTIONS['ns_coupon_netsuite_sync']) && !empty($TMWNI_OPTIONS['ns_coupon_netsuite_sync'])) {
 
-			$promoCodes = array();
+			$items = $this->_setOrderItems($order_data['items'], $order_data['total_shipping']);
 
-			$order = new WC_Order($order_data['order_id']);
+			$so->itemList->item = $items;
+			
+			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping']);
 
-			$applied_coupons = $order->get_used_coupons();
+			if (isset($TMWNI_OPTIONS['ns_coupon_netsuite_sync']) && !empty($TMWNI_OPTIONS['ns_coupon_netsuite_sync'])) {
 
-			if (!empty($applied_coupons)) {
-				foreach ( $applied_coupons as $key => $value) {
-					if (isset($TMWNI_OPTIONS['ns_promo_discount_id']) && !empty($TMWNI_OPTIONS['ns_promo_discount_id']) ) {
-						$promoCodes[] = $this->_addNSpromo($value, $TMWNI_OPTIONS['ns_promo_discount_id']);
-					} else {
-						$promoCodes[] = $this->_addNSpromo($value);
+				$promoCodes = array();
+
+				$order = new WC_Order($order_data['order_id']);
+
+				$applied_coupons = $order->get_used_coupons();
+
+				if (!empty($applied_coupons)) {
+					foreach ( $applied_coupons as $key => $value) {
+						if (isset($TMWNI_OPTIONS['ns_promo_discount_id']) && !empty($TMWNI_OPTIONS['ns_promo_discount_id']) ) {
+							$promoCodes[] = $this->_addNSpromo($value, $TMWNI_OPTIONS['ns_promo_discount_id']);
+						} else {
+							$promoCodes[] = $this->_addNSpromo($value);
+						}
 					}
 				}
-			}
 
-			if ( isset($promoCodes) && !empty($promoCodes) ) {
+				if ( isset($promoCodes) && !empty($promoCodes) ) {
 
-				$so->canHaveStackable = 1;
+					$so->canHaveStackable = 1;
 
-				$promoListObj = new PromotionsList();
-				$promoListObj->promotions = array();
-				foreach ($promoCodes as $codeKey => $codeValue) {
+					$promoListObj = new PromotionsList();
+					$promoListObj->promotions = array();
+					foreach ($promoCodes as $codeKey => $codeValue) {
 
-					$recRef = new RecordRef();
-					$recRef->internalId = $codeValue;
+						$recRef = new RecordRef();
+						$recRef->internalId = $codeValue;
 
 					// $recRef->internalId = 3842;
-					$promoListObj->promotions[$codeKey] = new Promotions();
-					$promoListObj->promotions[$codeKey]->promoCode = $recRef;
+						$promoListObj->promotions[$codeKey] = new Promotions();
+						$promoListObj->promotions[$codeKey]->promoCode = $recRef;
+					}
+
+					$so->promotionsList = $promoListObj;
+
 				}
+			}
 
-				$so->promotionsList = $promoListObj;
+			$so->internalId = $order_internal_id;
 
+			$so = apply_filters('tm_add_request_order_data', $so);
+
+
+			$request = new UpdateRequest();
+			$request->record = $so;
+			try {
+				$updateResponse = $this->netsuiteService->update($request);
+				if (isset($updateResponse->writeResponse->status->isSuccess) && 1 == $updateResponse->writeResponse->status->isSuccess) {
+					do_action('tm_netsuite_after_order_update', $order_data, $customer_internal_id, $order_internal_id);
+				}
+				return $this->handleAPIAddResponse($updateResponse, 'order');
+			} catch (SoapFault $e) {
+				$object = 'order';
+				$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
+				$error_msg .= 'Error Message: ' . $e->getMessage();
+
+				$this->handleLog(0, $this->object_id, $object, $error_msg);
+
+				return 0;
 			}
 		}
-		
-		$so->internalId = $order_internal_id;
 
-		$request = new UpdateRequest();
-		$request->record = $so;
-		// pr($so);
-		
-		try {
-			$updateResponse = $this->netsuiteService->update($request);
-			// pr($updateResponse); die('doneee');
-			return $this->handleAPIAddResponse($updateResponse, 'order');
-		} catch (SoapFault $e) {
-			$object = 'order';
-			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Add' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
-			$error_msg .= 'Error Message: ' . $e->getMessage();
-
-			$this->handleLog(0, $this->object_id, $object, $error_msg);
-
-			return 0;
-		}
 	}
 
 
@@ -420,8 +466,8 @@ class OrderClient extends CommonIntegrationFunctions {
 				}
 
 				$soi[$key]->price = $item['unit_price'];
-				$soi[$key]->amount = $item['unit_price'];
-				//$soi[$key]->amount = $item['total'];
+				//$soi[$key]->amount = $item['unit_price'];
+				$soi[$key]->amount = $item['total'];
 			}
 
 			if (isset($TMWNI_OPTIONS['ns_order_shiping_line_item']) && !empty($TMWNI_OPTIONS['ns_order_shiping_line_item']) && isset($TMWNI_OPTIONS['ns_order_shiping_line_item_enable']) && !empty($TMWNI_OPTIONS['ns_order_shiping_line_item_enable']) ) {
@@ -485,15 +531,15 @@ class OrderClient extends CommonIntegrationFunctions {
 			$customForm = new RecordRef();
 
 			if (isset($TMWNI_OPTIONS['ns_promo_custform_id']) && !empty($TMWNI_OPTIONS['ns_promo_custform_id']) ) {
-			 $customForm->internalId = $TMWNI_OPTIONS['ns_promo_custform_id'];
+				$customForm->internalId = $TMWNI_OPTIONS['ns_promo_custform_id'];
 			}
 
-		 $fieldsArray = array(
-			'customForm' => $customForm,
-			'name' => $coupon_post_obj->post_name, 
-			'code' => $coupon_post_obj->post_title, 
+			$fieldsArray = array(
+				'customForm' => $customForm,
+				'name' => $coupon_post_obj->post_name, 
+				'code' => $coupon_post_obj->post_title, 
 						//"discount" => $this->createRecordRef($discount_internal_id),   //Uncomment if discount internal id is availble (Use 1701 for testing)
-			'discount' => $discRef,
+				'discount' => $discRef,
 						'rate' => $discountRate,                                               //Uncomment if "discount" field is active
 						//"useType" => $usetype,                                               //INSUFFICIENT_PERMISSION or Readonly field
 						'description' => $coupon_post_obj->post_excerpt,
@@ -501,19 +547,19 @@ class OrderClient extends CommonIntegrationFunctions {
 						'endDate' => $coupan_expiry
 					);
 
-				setFields($add_coupon, $fieldsArray);
+			setFields($add_coupon, $fieldsArray);
 
 			try {
 
-			   $netsuitePromo = new AddRequest();
-			   $netsuitePromo->record = $add_coupon;
-			   $writeResponse = $this->netsuiteService->add($netsuitePromo);
-			   $this->handleAPIAddResponse($writeResponse, 'coupon');
+				$netsuitePromo = new AddRequest();
+				$netsuitePromo->record = $add_coupon;
+				$writeResponse = $this->netsuiteService->add($netsuitePromo);
+				$this->handleAPIAddResponse($writeResponse, 'coupon');
 
 				if (isset($writeResponse->writeResponse->status->isSuccess) && 1 == $writeResponse->writeResponse->status->isSuccess && isset($writeResponse->writeResponse->baseRef->internalId) && !empty($writeResponse->writeResponse->baseRef->internalId) ) {
-				  return $writeResponse->writeResponse->baseRef->internalId;
+					return $writeResponse->writeResponse->baseRef->internalId;
 				} else {
-				 return 0;
+					return 0;
 				}
 			} catch (SoapFault $exc) {
 				$object = 'coupon';
