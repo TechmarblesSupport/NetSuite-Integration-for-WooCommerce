@@ -1,4 +1,6 @@
 *** NetSuite Integration for WooCommerce Changelog ***
+2021-09-10 - version 1.0.6
+* Change woo tested version
 
 2021-09-10 - version 1.0.5
 * Sync KitItem, AssemblyItem, InventoryItem
