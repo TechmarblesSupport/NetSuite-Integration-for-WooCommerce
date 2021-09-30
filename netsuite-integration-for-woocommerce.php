@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NetSuite Integration for WooCommerce
  * Description: Plugin will be used to add/update woocommerce orders and customers to Netsuite.
- * Version: 1.0.6
+ * Version: 1.0.7
  * Author: Manish Gautam
  * Text Domain: TMWNI
  * WC requires at least: 2.2

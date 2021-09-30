@@ -1,4 +1,7 @@
 *** NetSuite Integration for WooCommerce Changelog ***
+2021-09-30 - version 1.0.7
+* Sync customer billing,shipping address
+
 2021-09-10 - version 1.0.6
 * Change woo tested version
 
@@ -18,5 +21,5 @@
 * Sync Assemply Items Quantity and Price
 
 2021-06-01 - version 1.0
-* Initial release
+* Initial release 
 

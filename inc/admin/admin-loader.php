@@ -377,13 +377,9 @@ class TMWNI_Admin_Loader {
 			<tr>
 				<th><label for="ns_id"><?php esc_attr_e('NetSuite Internal ID'); ?></label></th>
 				<td>
-					<input name="ns_customer_internal_id" id="ns_id" value="
-					<?php 
-					!empty($ns_customer_internal_id) ? esc_attr_e($ns_customer_internal_id) :  '';
-					?>
-					" disabled>
+					<input name="ns_customer_internal_id" id="ns_id" value="<?php !empty($ns_customer_internal_id) ? esc_attr_e(trim($ns_customer_internal_id)) :  ''; ?>" disabled>
 					<br />
-				</td>
+				</td>  
 			</tr>
 		</table>
 	<?php 

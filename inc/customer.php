@@ -189,11 +189,13 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 		$request = new UpdateRequest();
 		$request->record = $customer;
+		// pr($customer);
 
 
 		
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
+				//pr($updateResponse); die('abcd');
 				if (1 == $updateResponse->writeResponse->status->isSuccess) {
 					do_action('tm_netsuite_after_customer_update', $updateResponse);
 				}		

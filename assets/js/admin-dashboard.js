@@ -44,8 +44,9 @@ jQuery(document).ready(function ($) {
 			},
 			success: function (response) {
 			btnEventListener.closest('.manually_order_sync_btn').find('span.loaderSpiner').hide();
+			console.log(response);
 
-				if (response == 0 || response == '') {
+				if (response == 0 || response == '' || response == 00) {
 					$.notify('oops! Something went wrong. Please try again', {type: "info", icon:"close",align:"right", color: "#fff", background: "#D44950"});
 				} else {
 					$.notify(" Order has been successfully synced to NetSuite", {type: "info", icon:"check",align:"right", color: "#fff", background: "#20D67B"});
