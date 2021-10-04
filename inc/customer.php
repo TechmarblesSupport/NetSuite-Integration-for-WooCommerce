@@ -123,6 +123,9 @@ class CustomerClient extends CommonIntegrationFunctions {
 				$customer->lastName = $customer_data['lastName'];
 			}
 
+			$customer->email = $customer_data['email'];
+			$customer->phone = $customer_data['phone'];
+
 		$customer = apply_filters('tm_add_request_customer_data', $customer);
 		
 
@@ -130,7 +133,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 		$request->record = $customer;
 
 
-		// pr($request);die;
+		// pr($request);die('zzz');
 			try {
 				$addResponse = $this->netsuiteService->add($request);
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
@@ -181,6 +184,11 @@ class CustomerClient extends CommonIntegrationFunctions {
 				$customer->lastName = $customer_data['lastName'];
 			}
 
+
+			$customer->email = $customer_data['email'];
+			$customer->phone = $customer_data['phone'];
+
+
 		$customer->internalId = $customer_internal_id;
 
 
@@ -195,7 +203,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 		
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
-				//pr($updateResponse); die('abcd');
+				// pr($updateResponse); die('abcd');
 				if (1 == $updateResponse->writeResponse->status->isSuccess) {
 					do_action('tm_netsuite_after_customer_update', $updateResponse);
 				}		

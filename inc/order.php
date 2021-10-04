@@ -169,7 +169,8 @@ class OrderClient extends CommonIntegrationFunctions {
 			}
 
 			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
-				$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
+				$ns_billing_country = $order_data['billing_address']['country'];
+;
 			} else {
 				$ns_billing_country = '';
 			}
@@ -183,10 +184,12 @@ class OrderClient extends CommonIntegrationFunctions {
 			$so->billingAddress->state = $order_data['billing_address']['state'];
 			$so->billingAddress->zip = $order_data['billing_address']['postcode'];
 			$so->billingAddress->country = $ns_billing_country;
+			$so->billingAddress->addrPhone = $order_data['billing_address']['phone'];
+
 
 
 			if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
-				$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
+				$ns_shipping_country = $order_data['shipping_address']['country'];
 			} else {
 				$ns_shipping_country = '';
 			}
@@ -269,10 +272,11 @@ class OrderClient extends CommonIntegrationFunctions {
 			$so = apply_filters('tm_add_request_order_data', $so);		
 			$request = new AddRequest();
 			$request->record = $so;
-
+			// pr($so);
 			try {
 
 				$addResponse = $this->netsuiteService->add($request);
+				// pr($addResponse); die;
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
 					$order_internal_id = $addResponse->writeResponse->baseRef->internalId;
 					do_action('tm_netsuite_after_order_add', $order_data, $customer_internal_id, $order_internal_id);
@@ -298,6 +302,7 @@ class OrderClient extends CommonIntegrationFunctions {
 	*/ 
 	public function updateOrder( $order_data, $customer_internal_id, $order_internal_id) {
 		global $TMWNI_OPTIONS;
+		// pr($order_data); die;
 
 		$order_sync_status = true;
 
@@ -317,12 +322,8 @@ class OrderClient extends CommonIntegrationFunctions {
 			$this->createRequest($so, $order_data);
 
 			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
-				if (isset(TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']])) {
-					$ns_billing_country = TMWNI_Settings::$netsuite_country[$order_data['billing_address']['country']];
-				} else {
-					$ns_billing_country = $order_data['billing_address']['country'];
-				}
-				
+				$ns_billing_country = $order_data['billing_address']['country'];
+;
 			} else {
 				$ns_billing_country = '';
 			}
@@ -338,14 +339,11 @@ class OrderClient extends CommonIntegrationFunctions {
 			$so->billingAddress->state = $order_data['billing_address']['state'];
 			$so->billingAddress->zip = $order_data['billing_address']['postcode'];
 			$so->billingAddress->country = $ns_billing_country;
+			$so->billingAddress->addrPhone = $order_data['billing_address']['phone'];
 
 
 			if (isset($order_data['shipping_address']['country']) && !empty($order_data['shipping_address']['country'])) {
-				if (isset(TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']])) {
-					$ns_shipping_country = TMWNI_Settings::$netsuite_country[$order_data['shipping_address']['country']];
-				} else {
-					$ns_shipping_country = $order_data['shipping_address']['country'];
-				}
+				$ns_shipping_country = $order_data['shipping_address']['country'];
 			} else {
 				$ns_shipping_country = '';
 			}
@@ -414,8 +412,10 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			$request = new UpdateRequest();
 			$request->record = $so;
+			// pr($so);
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
+				//pr($updateResponse); die;
 				if (isset($updateResponse->writeResponse->status->isSuccess) && 1 == $updateResponse->writeResponse->status->isSuccess) {
 					do_action('tm_netsuite_after_order_update', $order_data, $customer_internal_id, $order_internal_id);
 				}

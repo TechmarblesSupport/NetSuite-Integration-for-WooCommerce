@@ -1,4 +1,12 @@
 *** NetSuite Integration for WooCommerce Changelog ***
+2021-10-01 - version 1.0.9
+* Order Billing, Shipping country sync
+
+
+2021-09-30 - version 1.0.8
+* Sync Customer Email,Phone
+
+
 2021-09-30 - version 1.0.7
 * Sync customer billing,shipping address
 
