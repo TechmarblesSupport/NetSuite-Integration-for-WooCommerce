@@ -52,7 +52,9 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 	public function __construct() {
 		//set netsuite API client object
+		if (TMWNI_Settings::areCredentialsDefined()) {
 		$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+		}
 	}
 
 
@@ -77,7 +79,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 		$request->searchRecord = $search;
 		try {
 			$searchResponse = $this->netsuiteService->search($request);
-			apply_filters('tm_ns_customer_response', $searchResponse);
+			apply_filters('tm_ns_customer_response', $searchResponse, $customer_id);
 			return $this->handleAPISearchResponse($searchResponse, 'customer', $email);
 		} catch (SoapFault $e) {
 			$object = 'customer';
@@ -97,7 +99,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 	 */
 	public function addCustomer( $customer_data, $add_list, $state, $order_id = 0) {
 		$customer_sync_status = true;
-		$customer_sync_status  = apply_filters('tm_netsuite_customer_sync_status', $customer_sync_status, $customer_data, $add_list);
+		$customer_sync_status  = apply_filters('tm_netsuite_customer_sync_status', $customer_sync_status, $customer_data, $add_list, $order_id);
 		if (false != $customer_sync_status) {
 
 			global $TMWNI_OPTIONS;
@@ -126,7 +128,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 			$customer->email = $customer_data['email'];
 			$customer->phone = $customer_data['phone'];
 
-		$customer = apply_filters('tm_add_request_customer_data', $customer);
+		$customer = apply_filters('tm_add_request_customer_data', $customer, $customer_data['customer_id'], $order_id);
 		
 
 		$request = new AddRequest();
@@ -137,7 +139,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 			try {
 				$addResponse = $this->netsuiteService->add($request);
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
-					do_action('tm_netsuite_after_customer_add', $addResponse);
+					do_action('tm_netsuite_after_customer_add', $addResponse, $customer_data['customer_id'], $order_id);
 				}
 				return $this->handleAPIAddResponse($addResponse, 'customer');
 			} catch (SoapFault $e) {
@@ -158,7 +160,7 @@ class CustomerClient extends CommonIntegrationFunctions {
 	 */
 	public function updateCustomer( $customer_data, $customer_internal_id, $add_list, $state, $order_id = 0) {
 		$customer_sync_status = true;
-		$customer_sync_status  = apply_filters('tm_netsuite_customer_update_status', $customer_sync_status, $customer_data, $add_list);
+		$customer_sync_status  = apply_filters('tm_netsuite_customer_update_status', $customer_sync_status, $customer_data, $add_list, $order_id);
 		if (false != $customer_sync_status) {
 
 			global $TMWNI_OPTIONS;
@@ -192,20 +194,20 @@ class CustomerClient extends CommonIntegrationFunctions {
 		$customer->internalId = $customer_internal_id;
 
 
-		$customer = apply_filters('tm_update_request_customer_data', $customer);
+		$customer = apply_filters('tm_update_request_customer_data', $customer, $customer_data['customer_id'], $order_id);
 
 
 		$request = new UpdateRequest();
 		$request->record = $customer;
-		// pr($customer);
+		//pr($customer);
 
 
 		
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
-				// pr($updateResponse); die('abcd');
+				//pr($updateResponse); die('abcd');
 				if (1 == $updateResponse->writeResponse->status->isSuccess) {
-					do_action('tm_netsuite_after_customer_update', $updateResponse);
+					do_action('tm_netsuite_after_customer_update', $updateResponse, $order_id);
 				}		
 				return $this->handleAPIUpdateResponse($updateResponse, 'customer');
 			} catch (SoapFault $e) {

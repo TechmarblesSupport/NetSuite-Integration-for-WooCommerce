@@ -34,7 +34,9 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 
 	public function __construct() {
 		//set netsuite API client object
-		$this->netsuiteService = new NetSuiteService();
+		if (TMWNI_Settings::areCredentialsDefined()) {
+			$this->netsuiteService = new NetSuiteService();
+		}
 	}
 
 

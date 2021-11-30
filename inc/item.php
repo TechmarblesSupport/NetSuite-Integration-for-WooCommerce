@@ -35,7 +35,9 @@ class ItemClient extends CommonIntegrationFunctions {
 
 		if (empty($this->netsuiteService)) {
 			//intialising netsuite service
-			$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+			if (TMWNI_Settings::areCredentialsDefined()) {
+				$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+			}
 		}
 	}
 
@@ -132,6 +134,7 @@ class ItemClient extends CommonIntegrationFunctions {
 		file_put_contents($log_file, $content . PHP_EOL, FILE_APPEND);
 		$content = '<p><b>Action: Inventory/Price Update</b></p>';
 		file_put_contents($log_file, $content . PHP_EOL, FILE_APPEND);
+		
 		$response = $this->_searchItem($item_sku, $product_id);
 
 		if ($response['status']) {
@@ -206,6 +209,7 @@ class ItemClient extends CommonIntegrationFunctions {
 		$search->itemId = $SearchField;
 
 		//set search request
+		$search = apply_filters('tm_ns_search_item', $search, $item_sku, $product_id);
 		$request = new SearchRequest();
 		$request->searchRecord = $search;
 		$quantity = false;
@@ -214,6 +218,7 @@ class ItemClient extends CommonIntegrationFunctions {
 			//perofrm search request
 
 			$searchResponse = $this->netsuiteService->search($request);
+			// pr($searchResponse); die;
 			apply_filters('tm_ns_search_item_response', $searchResponse, $product_id);
 			if (!$searchResponse->searchResult->status->isSuccess) {
 
@@ -463,35 +468,29 @@ class ItemClient extends CommonIntegrationFunctions {
 	private function updateWooQuantity( $product_id, $quantity) {
 		global $TMWNI_OPTIONS;
 		if (false !== $quantity) {
+			update_post_meta($product_id, '_stock', $quantity);
 			if (isset($TMWNI_OPTIONS['overrideManageStock']) && 'on' == $TMWNI_OPTIONS['overrideManageStock'] ) {
 				$manage_stock = update_post_meta($product_id, '_manage_stock', 'yes');
-				$this->updateStock($product_id, $quantity);
 			} else {
-				$manage_stock = get_post_meta($product_id, '_manage_stock', true);
-				if ('yes' == $manage_stock) {
-					$this->updateStock($product_id, $quantity);
-					
-				}
-
-			}	
-
-			
+				$this->updateStock($product_id, $quantity);
+			}
+			$old_count = get_option('updated_products_count');
+			$new_count = $old_count + 1;
+			$content = '<p><b>Action: Inventory updated</b></p>';
+			$this->updateLogFileContent($content, $new_count);
 		}
 	}
 
 
 	private function updateStock( $product_id, $quantity) {
-		update_post_meta($product_id, '_stock', $quantity);
-		if ($quantity > 0) {
-			update_post_meta($product_id, '_stock_status', 'instock');
-		} else {
-			update_post_meta($product_id, '_stock_status', 'outofstock');
-		}
 
-		$old_count = get_option('updated_products_count');
-		$new_count = $old_count + 1;
-		$content = '<p><b>Action: Inventory updated</b></p>';
-		$this->updateLogFileContent($content, $new_count);
+		if ('onbackorder' != get_post_meta($product_id, '_stock_status', true)) {
+			if ($quantity > 0) {
+				update_post_meta($product_id, '_stock_status', 'instock');
+			} else {
+				update_post_meta($product_id, '_stock_status', 'outofstock');
+			}
+		}
 
 	}
 

@@ -13,7 +13,7 @@ use NetSuite\Classes\SalesOrder;
 
 
 
-class TMWNI_Admin_Loader {
+class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 
 	private $netsuiteParameters;
 
@@ -356,13 +356,34 @@ class TMWNI_Admin_Loader {
 		if (TMWNI_Settings::areCredentialsDefined()) {
 			$ns_service = new NetSuiteService();
 			$GetServerTimeRequest = new GetServerTimeRequest();
-			$rtn_data =  $ns_service->getServerTime($GetServerTimeRequest);
-			if (isset($rtn_data->getServerTimeResult->status->isSuccess) && 1 == $rtn_data->getServerTimeResult->status->isSuccess) {
+			
+			
+
+			try {
+				$rtn_data =  $ns_service->getServerTime($GetServerTimeRequest);
+				if (isset($rtn_data->getServerTimeResult->status->isSuccess) && 1 == $rtn_data->getServerTimeResult->status->isSuccess) {
 				$return['status'] = 0;
 				$return['message'] = 'Congrats. API connection is successful.';
-			} else {
+				} else {
+					if (isset($rtn_data->detail->invalidCredentialsFault->message) && !empty($rtn_data->detail->invalidCredentialsFault->message)) {
+						$error_msg = $rtn_data->detail->invalidCredentialsFault->message;
+					$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
+					$this->handleLog(0, 0, 'validate creds', $error_msg);
+
+					}
+				
+				}
+			} catch (SoapFault $e) {
 				$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
+				$this->handleLog(0, 0, 'validate creds', $e->getMessage());
 			}
+
+
+
+
+
+
+
 		} else {
 			$return['message'] = "API Credentials are not defined.Please 'enter & save' API credentials first";
 		}

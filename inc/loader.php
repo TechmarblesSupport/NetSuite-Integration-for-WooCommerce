@@ -8,7 +8,6 @@ foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
 
 
 
-
 use NetSuite\NetSuiteService;
 use NetSuite\Classes\CustomerAddressbookList;
 use NetSuite\Classes\CustomerAddressbook;
@@ -57,9 +56,11 @@ class TMWNI_Loader {
 	public function __construct() {
 
 		global $TMWNI_OPTIONS;
-		$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+		
 
 		if (TMWNI_Settings::areCredentialsDefined()) {
+
+			$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
 
 
 			require_once TMWNI_DIR . 'inc/inventory.php';
@@ -68,7 +69,7 @@ class TMWNI_Loader {
 			if (isset($TMWNI_OPTIONS['enableCustomerSync']) && 'on' == $TMWNI_OPTIONS['enableCustomerSync']) {
 				//USER PROFILE HOOKS
 				//wordpress user register
-				add_action('user_register', array($this, 'addUpdateNetsuiteCustomer'));
+				add_action('user_register', array($this, 'addUpdateNetsuiteCustomer'), 999);
 
 				//wooocommerce customer created
 				add_action('woocommerce_created_customer', array($this, 'addUpdateNetsuiteCustomer'));
@@ -337,7 +338,7 @@ class TMWNI_Loader {
 			$address_data = [$alb, $als];
 			
 
-			$addressbook = apply_filters('tm_netsuite_customer_address_data', $addressbook);
+			$address_data = apply_filters('tm_netsuite_customer_address_data', $address_data, $customer_id);
 			$al = new CustomerAddressbookList();
 			$al->addressbook = $address_data;
 
@@ -489,9 +490,12 @@ class TMWNI_Loader {
 
 
 		//update customer if it already exists on netsuite
-
-		$al = apply_filters('tm_netsuite_customer_address_data', $al);
+		$address_data = apply_filters('tm_netsuite_customer_address_data', $address_data, $customer_id);
+		$al = new CustomerAddressbookList();
 		$al->addressbook = $address_data;
+
+
+
 
 		if (!empty($customer_internal_id)) {
 			$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $cust_address['state'], $cust_order_id);
@@ -534,7 +538,7 @@ class TMWNI_Loader {
 			//get required order data
 
 			$order_data = $this->getOrderData($order_id , TMWNI_Settings::$ns_rec_type_order);
-			$order_data = apply_filters('tm_netsuite_order_data', $order_data);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
 
 			//set order id
 			$this->netsuiteOrderClient->order_id = $order_id;
@@ -558,7 +562,7 @@ class TMWNI_Loader {
 
 			//get required order data
 			$order_data = $this->getOrderData($order_id, TMWNI_Settings::$ns_rec_type_order);
-			$order_data = apply_filters('tm_netsuite_order_data', $order_data);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
 
 			$order_netsuite_internal_id = $this->netsuiteOrderClient->updateOrder($order_data, $customer_internal_id, $check_if_sent);
 			

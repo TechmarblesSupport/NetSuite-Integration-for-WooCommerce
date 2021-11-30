@@ -67,8 +67,9 @@ class OrderClient extends CommonIntegrationFunctions {
 
 	public function __construct() {
 		//set netsuite API client object
-
-		$this->netsuiteService = new NetSuiteService();
+		if (TMWNI_Settings::areCredentialsDefined()) {
+			$this->netsuiteService = new NetSuiteService();
+		}
 	}
 
 	/**
@@ -82,6 +83,9 @@ class OrderClient extends CommonIntegrationFunctions {
 		$SearchField->searchValue = $item_sku;
 		$search = new ItemSearchBasic();
 		$search->itemId = $SearchField;
+
+
+		$search = apply_filters('tm_ns_order_search_item', $search, $item_sku, $product_id);
 		$request = new SearchRequest();
 		$request->searchRecord = $search;
 		$item_internal_id = 0;
@@ -102,6 +106,8 @@ class OrderClient extends CommonIntegrationFunctions {
 			} else {
 				//check if search record found
 				if (1 == $searchResponse->searchResult->status->isSuccess) {
+
+					apply_filters('tm_ns_after_search_item', $searchResponse, $item_sku, $product_id);
 					//get items location id 
 					$item_internal_id = $searchResponse->searchResult->recordList->record[0]->internalId;
 					// pr($searchResponse);
@@ -170,7 +176,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
 				$ns_billing_country = $order_data['billing_address']['country'];
-;
+				;
 			} else {
 				$ns_billing_country = '';
 			}
@@ -218,7 +224,7 @@ class OrderClient extends CommonIntegrationFunctions {
 			$items = $this->_setOrderItems($order_data['items'], $order_data['total_shipping']);
 
 			$so->itemList->item = $items;			
-			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping']);
+			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping'], $order_data['order_id']);
 
 
 
@@ -269,10 +275,10 @@ class OrderClient extends CommonIntegrationFunctions {
 			update_post_meta($order_data['order_id'], TMWNI_Settings::$ns_external_order_id, $ns_public_order_id);
 
 
-			$so = apply_filters('tm_add_request_order_data', $so);		
+			$so = apply_filters('tm_add_request_order_data', $so, $order_data['order_id']);		
 			$request = new AddRequest();
 			$request->record = $so;
-			// pr($so);
+			//pr($so); die('zzzz');
 			try {
 
 				$addResponse = $this->netsuiteService->add($request);
@@ -323,7 +329,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			if (isset($order_data['billing_address']['country']) && !empty($order_data['billing_address']['country'])) {
 				$ns_billing_country = $order_data['billing_address']['country'];
-;
+				;
 			} else {
 				$ns_billing_country = '';
 			}
@@ -364,7 +370,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			$so->itemList->item = $items;
 			
-			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping']);
+			$so->itemList->item = apply_filters('tm_ns_order_item', $items, $order_data['items'], $order_data['total_shipping'], $order_data['order_id']);
 
 			if (isset($TMWNI_OPTIONS['ns_coupon_netsuite_sync']) && !empty($TMWNI_OPTIONS['ns_coupon_netsuite_sync'])) {
 
@@ -407,12 +413,12 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			$so->internalId = $order_internal_id;
 
-			$so = apply_filters('tm_add_request_order_data', $so);
+			$so = apply_filters('tm_update_request_order_data', $so, $order_data['order_id']);
 
 
 			$request = new UpdateRequest();
 			$request->record = $so;
-			// pr($so);
+			//pr($so); die('zzz');
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
 				//pr($updateResponse); die;

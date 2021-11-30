@@ -339,7 +339,7 @@ class TMWNI_Settings {
 	//Check if required amazon creds are saved by admin
 	public static function areCredentialsDefined() {
 		global $TMWNI_OPTIONS;
-		if (empty($TMWNI_OPTIONS['ns_consumer_key']) || empty($TMWNI_OPTIONS['ns_consumer_secret']) || empty($TMWNI_OPTIONS['ns_token_id']) || empty($TMWNI_OPTIONS['ns_token_secret']) || empty($TMWNI_OPTIONS['ns_account'])) {
+		if (empty($TMWNI_OPTIONS['ns_consumer_key']) || empty($TMWNI_OPTIONS['ns_consumer_secret']) || empty($TMWNI_OPTIONS['ns_token_id']) || empty($TMWNI_OPTIONS['ns_token_secret']) || empty($TMWNI_OPTIONS['ns_account']) || empty($TMWNI_OPTIONS['ns_host'])) {
 			return false;
 		}
 		return true;

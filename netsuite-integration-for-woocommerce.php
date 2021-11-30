@@ -2,7 +2,7 @@
 /**
  * Plugin Name: NetSuite Integration for WooCommerce
  * Description: Plugin will be used to add/update woocommerce orders and customers to Netsuite.
- * Version: 1.0.9
+ * Version: 1.1.5
  * Author: Manish Gautam
  * Text Domain: TMWNI
  * WC requires at least: 2.2
@@ -34,16 +34,23 @@ if (!function_exists('pr')) {
 	}
 }
 
+
 	// Put your plugin code here
 add_action('plugins_loaded', 'init_tm_netsuite_integration', 1);
 
 function init_tm_netsuite_integration() {
-
-	if ( !in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
-		require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
-		deactivate_plugins( '/netsuite-integration-for-woocommerce/netsuite-integration-for-woocommerce.php', true );
+	if (is_multisite()) {
+		$active_plugins = get_site_option( 'active_sitewide_plugins' );
+		if ( !isset( $active_plugins[ 'woocommerce/woocommerce.php' ] ) ) {
+			require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+			deactivate_plugins( '/netsuite-integration-for-woocommerce/netsuite-integration-for-woocommerce.php', true );
+		}
+	} else {
+		if ( !in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
+			require_once( ABSPATH . 'wp-admin/includes/plugin.php' );
+			deactivate_plugins( '/netsuite-integration-for-woocommerce/netsuite-integration-for-woocommerce.php', true );
+		}
 	}
-
 	
 	define('TMWNI_DIR', plugin_dir_path(__FILE__));
 	define('TMWNI_URL', plugin_dir_url(__FILE__));
@@ -75,53 +82,110 @@ register_activation_hook(__FILE__, 'install_tm_netsuite_integration_plugin');
 
 	// function for creating log table "in8sync_log"
 function install_tm_netsuite_integration_plugin() {
-	if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
-		//create log database table
-		global $wpdb;
-		$table_name = $wpdb->prefix . 'tm_woo_netsuite_logs';
-		$charset_collate = '';
+	if (is_multisite()) {
+		$active_plugins = get_site_option( 'active_sitewide_plugins' );
+			// echo "<pre>";
+			// print_r($active_plugins);
+			// die('&&*!');
+			// if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', $active_plugins ) ) ) {
+		if ( isset( $active_plugins[ 'woocommerce/woocommerce.php' ] ) ) {
+				//create log database table
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'tm_woo_netsuite_logs';
+			$charset_collate = '';
 
-		if (!empty($wpdb->charset)) {
-			$charset_collate = "DEFAULT CHARACTER SET {$wpdb->charset}";
-		}
+			if (!empty($wpdb->charset)) {
+				$charset_collate = "DEFAULT CHARACTER SET {$wpdb->charset}";
+			}
 
-		if (!empty($wpdb->collate)) {
-			$charset_collate .= " COLLATE {$wpdb->collate}";
-		}
+			if (!empty($wpdb->collate)) {
+				$charset_collate .= " COLLATE {$wpdb->collate}";
+			}
+				// check if table emopty
+			if ($wpdb->get_var($wpdb->prepare('show tables like %s', $table_name)) != $table_name) {
+				require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+				$sql = 'CREATE TABLE `' . $table_name . "` (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+					`operation` varchar(100) NOT NULL,
+					`status` tinyint(4) NOT NULL,
+					`notes` text NOT NULL,
+					`woo_object_id` int(11) NULL,
+					PRIMARY KEY (`id`)
+				) $charset_collate;";
+				dbDelta($sql);
+			}
+
+
+			$dashboard_table_name = $wpdb->prefix . 'tm_woo_netsuite_auto_sync_order_status';
 		// Check if table empty
-		if ($wpdb->get_var($wpdb->prepare('show tables like %s', $table_name)) != $table_name) {
-			require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-			$sql = 'CREATE TABLE `' . $table_name . "` (
-			`id` int(11) NOT NULL AUTO_INCREMENT,
-			`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			`operation` varchar(100) NOT NULL,
-			`status` tinyint(4) NOT NULL,
-			`notes` text NOT NULL,
-			`woo_object_id` int(11) NULL,
-			PRIMARY KEY (`id`)
-		) $charset_collate;";
-		dbDelta($sql);
-		}
-
-		$dashboard_table_name = $wpdb->prefix . 'tm_woo_netsuite_auto_sync_order_status';
-		// Check if table empty
-		if ($wpdb->get_var($wpdb->prepare('show tables like %s', $dashboard_table_name)) != $dashboard_table_name) {
-			require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-			$sql = 'CREATE TABLE `' . $dashboard_table_name . "` (
-			`id` int(11) NOT NULL AUTO_INCREMENT,
-			`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-			`operation` varchar(100) NOT NULL,
-			`status` tinyint(4) NOT NULL,
-			`notes` text  NULL,
-			`woo_object_id` int(11) NOT NULL,
-			`ns_order_internal_id` int(11) NULL,
-			`ns_order_status` varchar(100) NULL,
-			PRIMARY KEY (`id`)
-		) $charset_collate;";
-		dbDelta($sql);
+			if ($wpdb->get_var($wpdb->prepare('show tables like %s', $dashboard_table_name)) != $dashboard_table_name) {
+				require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+				$sql = 'CREATE TABLE `' . $dashboard_table_name . "` (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+					`operation` varchar(100) NOT NULL,
+					`status` tinyint(4) NOT NULL,
+					`notes` text  NULL,
+					`woo_object_id` int(11) NOT NULL,
+					`ns_order_internal_id` int(11) NULL,
+					`ns_order_status` varchar(100) NULL,
+					PRIMARY KEY (`id`)
+				) $charset_collate;";
+				dbDelta($sql);
+			}
+		} else {
+			die('Your store needs to be Woocomerce ready to activate this plugin.');
 		}
 	} else {
-		die('Your store needs to be Woocomerce ready to activate this plugin.');
+		if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
+		//create log database table
+			global $wpdb;
+			$table_name = $wpdb->prefix . 'tm_woo_netsuite_logs';
+			$charset_collate = '';
+
+			if (!empty($wpdb->charset)) {
+				$charset_collate = "DEFAULT CHARACTER SET {$wpdb->charset}";
+			}
+
+			if (!empty($wpdb->collate)) {
+				$charset_collate .= " COLLATE {$wpdb->collate}";
+			}
+		// Check if table empty
+			if ($wpdb->get_var($wpdb->prepare('show tables like %s', $table_name)) != $table_name) {
+				require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+				$sql = 'CREATE TABLE `' . $table_name . "` (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+					`operation` varchar(100) NOT NULL,
+					`status` tinyint(4) NOT NULL,
+					`notes` text NOT NULL,
+					`woo_object_id` int(11) NULL,
+					PRIMARY KEY (`id`)
+				) $charset_collate;";
+				dbDelta($sql);
+			}
+
+			$dashboard_table_name = $wpdb->prefix . 'tm_woo_netsuite_auto_sync_order_status';
+		// Check if table empty
+			if ($wpdb->get_var($wpdb->prepare('show tables like %s', $dashboard_table_name)) != $dashboard_table_name) {
+				require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+				$sql = 'CREATE TABLE `' . $dashboard_table_name . "` (
+					`id` int(11) NOT NULL AUTO_INCREMENT,
+					`created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+					`operation` varchar(100) NOT NULL,
+					`status` tinyint(4) NOT NULL,
+					`notes` text  NULL,
+					`woo_object_id` int(11) NOT NULL,
+					`ns_order_internal_id` int(11) NULL,
+					`ns_order_status` varchar(100) NULL,
+					PRIMARY KEY (`id`)
+				) $charset_collate;";
+				dbDelta($sql);
+			}
+		} else {
+			die('Your store needs to be Woocomerce ready to activate this plugin.');
+		}
 	}
 
 }
