@@ -138,7 +138,7 @@ td#promo_required_fields fieldset input {
 }
 
 td.promo_required_fields{
-    display: none;
+    display: none !important;
 }
 .ns_order_shiping_line_item{
     display: none !important;
@@ -178,7 +178,7 @@ input[type=checkbox]:checked:before {
     transform: rotate(45deg);
     left: 10px;
     top: -5px;
-    z-index: 9999;
+    /*z-index: 9999;*/
 }
 .notice.notice-error h4 a {
     color: #2271b1;
@@ -459,7 +459,7 @@ div#logList_info {
     position: relative;
 }
 
-select#customer_roles {
+select#customer_roles, select#netsuite_countries, select#netstuite_locations {
     width: 100%;
     padding: 10px 10px;
     border: 0;
@@ -468,10 +468,11 @@ select#customer_roles {
     overflow-y: scroll;
 }
 
-select#customer_roles option {
+select#customer_roles option, select#netsuite_countries option, select#netstuite_locations option {
     background: #2271b100 !important;
     padding: 9px;
 }
+
 .tm-netsuite-container .row .col-md-12 h4 {
     font-size: 18px;
     font-weight: 600;
@@ -608,6 +609,9 @@ table.form-table.general-form-table select, table.form-table.general-form-table 
 #wrap .dropdown:hover .dropdown-content {display: block;}
 
 #wrap .dropdown:hover .dropbtn {background-color: #3e8e41;}
+
+
+
 #wpbody-content #wrap nav.nav-tab-wrapper a {
     display: flex;
     cursor: pointer;
@@ -746,3 +750,88 @@ a.button-primary.manual-update-inventory {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
 }
+
+.inventory-table-main .select2-container { 
+    min-width: 180px; 
+    height: 32px 
+}
+.inventory-table-main .radio-input td, .inventory-table-main .radio-input th {
+    padding-top: 0;
+    padding-bottom: 0;
+}
+.inventory-table-main {
+    display: flex;
+    flex-wrap: wrap;
+}
+.inventory-table-main .inv-table {
+    width: 48%;
+    flex-wrap: wrap;
+    background-color: #f5f5f5;
+    border: 1px solid #e3e3e3;
+    padding: 15px;
+    margin: 0 1%;
+}
+.inventory-table-main .inv-table h3 {
+    margin: 0;
+    display: inline-block;
+    background: #000;
+    color: #fff;
+    position: relative;
+    height: auto;
+    padding: 10px 50px 5px 15px;
+}
+
+.inventory-table-main .inv-table h3::after {
+    content: "";
+    width: 0;
+    height: 0;
+    border-top: 20px solid transparent;
+    border-right: 30px solid #f5f5f5;
+    border-bottom: 20px solid transparent;
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+.inv-table-last {
+    width: 100%;
+    margin: 20px 0 0;
+}
+.forminp span.select2-selection.select2-selection--multiple {
+    height: 50px;
+    min-height: unset;
+    overflow-y: scroll;
+    min-width: 150px;
+}
+#customer_roles option{
+    margin-bottom: 5px;
+}
+#customer_roles option[selected="selected"]{
+    background: #ccc !important;
+}
+.order_fulfilment_fields{
+    display: none!important;
+}
+.order_enable_fields{
+    display: none!important;
+}
+input:required {
+  border-color: #d22d2d;
+  border-width: 3px;
+}
+select#ns_promo_custform_id,select#ns_promo_discount_id{
+    width: 100% !important;
+    display: inline !important;
+    max-width: fit-content !important;
+}
+.forminp span {
+    position: relative;
+    display: inline-block;
+    padding-right: 10px;
+}
+
+a#locationRefresh {
+    position: absolute;
+    right: 0;
+    top: 0;
+}
+

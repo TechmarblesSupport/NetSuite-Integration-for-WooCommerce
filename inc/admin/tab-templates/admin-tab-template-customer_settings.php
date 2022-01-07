@@ -34,7 +34,7 @@
 						</th>
 						<td class="forminp">
 							<fieldset>
-								<select id="customer_roles" name="customer_roles[]" multiple="multiple" style="height:65px !important">
+								<select id="customer_roles" name="customer_roles[]" class="customer_roles" multiple="multiple" style="height:65px !important">
 									<?php
 									global $wp_roles;
 									$user_roles = $wp_roles->get_names();
@@ -69,6 +69,26 @@
 							 id="enableSendCustomersAsCo" type="checkbox">                        
 						</td>
 					</tr>
+					<tr valign="top" class="">
+						<th scope="row" class="titledesc">
+							Is Netsuite Customer Entity ID auto generated ?
+							<div class="tooltip dashicons-before dashicons-editor-help">
+								<span class="tooltiptext">Enable when netsuite customers entity id is auto generated. If disabled then entity id will be populated with the email id which can be overridden by Customer Conditional Mapping</span>
+							</div>
+						</th>
+						<td class="forminp forminp-checkbox">
+							<input name="isEntityIdAuto" 
+							<?php
+							if (isset($options['isEntityIdAuto']) && 'on' == $options['isEntityIdAuto']) {
+								echo 'checked ';
+							}
+							?>
+							 id="isEntityIdAuto" type="checkbox">                        
+						</td>
+					</tr>
+					<?php					
+					do_action('tm_ns_after_customer_settings');
+					?>
 					<tr valign="top">
 						<th scope="row" class="titledesc">
 							<input type="submit" class="button-primary" name="save_post" value="Save Settings" /> 

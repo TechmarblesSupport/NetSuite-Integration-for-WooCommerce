@@ -1,6 +1,10 @@
 <?php
 
+
+	//define( 'WC_ODOO_INTEGRATION_INIT_VERSION', $plugin_version );
+
 class TMWNI_Settings {
+	public static $VERSION = 1;
 	public static $ns_inventory_log_file = 'netsuite-inventory-log.html';
 
 	public static $ns_order_id = 'ns_order_internal_id';
@@ -14,7 +18,7 @@ class TMWNI_Settings {
 	public static $error_log_file_name = 'tmwni_errors.log';
 	public static $inventory_sku_lot_limit = 50;
 	//define default tab
-	public static $default_tab = 'general_settings';
+	public static $default_tab = 'dashboard';
 	//customer
 	public static $order_shipping_line_item_id = '2174';
 	public static $pricing_group = 'Base Price';
@@ -274,24 +278,24 @@ class TMWNI_Settings {
 	);
 	//map tab ids to tab names
 	public static $tabs = [
-		'general_settings' => 'General Settings',
-		'inventory_settings' => 'Inventory Settings',
-		'customer_settings' => 'Customer Settings',
-		'order_settings' => 'Order Settings',
-		'logs' => 'NetSuite API Logs',
-		'help' => 'Help & Support',
-		'dashboard' => 'Dashboard',
+	'general_settings' => 'General Settings',
+	'inventory_settings' => 'Inventory Settings',
+	'customer_settings' => 'Customer Settings',
+	'order_settings' => 'Order Settings',
+	'logs' => 'NetSuite API Logs',
+	'help' => 'Help & Support',
+	'dashboard' => 'Dashboard',
 
-	];
+];
 	public static $inventory_sync_frequency = [
-		'hourly' => 'Hourly',
-		'twicedaily' => 'Twice a day',
-		'daily' => 'Every day'
-	];
+	'hourly' => 'Hourly',
+	'twicedaily' => 'Twice a day',
+	'daily' => 'Every day'
+];
 	public static $hma_method = [
-		'HMAC-SHA1' => 'HMAC-SHA1',
-		'HMAC-SHA256' => 'HMAC-SHA256',
-	];
+	'HMAC-SHA1' => 'HMAC-SHA1',
+	'HMAC-SHA256' => 'HMAC-SHA256',
+];
 
 	/**
 	 * Get Tab Settings
@@ -302,10 +306,31 @@ class TMWNI_Settings {
 		if ('' == $tab_id) {
 			foreach (self::$tabs as $tab_id => $tab_heading) {
 				$option_key = self::getTabOptionKey($tab_id);
-				$tab_option_data = get_option($option_key);
-				if (!empty($tab_option_data)) {
-					$settings = array_merge($settings, $tab_option_data);
+				if ('Order Settings' == $tab_heading) {
+					$order_fulfillment_settings = get_option('tmwni_order_settings_fulfillment_settings_options');
+					$order_general_settings = get_option('tmwni_order_settings_general_settings_options');
+					// pr($order_general_settings); die('zzzz');
+					if (!empty($order_fulfillment_settings) && !empty($order_general_settings)) {
+						$tab_option_data = array_merge($order_fulfillment_settings, $order_general_settings);
+					} elseif (!empty($order_fulfillment_settings)) {
+						$tab_option_data = $order_fulfillment_settings;
+
+					} elseif (!empty($order_general_settings)) {
+						$tab_option_data = $order_general_settings;
+					} else {
+						$tab_option_data = get_option($option_key);
+					}
+					
+				
+				} else {
+					$tab_option_data = get_option($option_key);
+					
 				}
+
+				if (!empty($tab_option_data)) {
+						$settings = array_merge($settings, $tab_option_data);
+				}
+				
 			}
 		} else {
 			$option_key = self::getTabOptionKey($tab_id, $sub_tab);
@@ -345,6 +370,12 @@ class TMWNI_Settings {
 		return true;
 	}
 
+
+
+
+
+
+
 	/**
 	 * Write Logs to DB
 	 *
@@ -357,48 +388,48 @@ class TMWNI_Settings {
 		return false;
 	}
 	public static function shapeSpace_allowed_html() {
-	$fields = wp_kses_allowed_html( 'post' );
-	$allowed_atts = array(
-		'align'      => array(),
-		'class'      => array(),
-		'type'       => array(),
-		'id'         => array(),
-		'dir'        => array(),
-		'lang'       => array(),
-		'style'      => array(),
-		'xml:lang'   => array(),
-		'src'        => array(),
-		'alt'        => array(),
-		'href'       => array(),
-		'rel'        => array(),
-		'rev'        => array(),
-		'target'     => array(),
-		'novalidate' => array(),
-		'type'       => array(),
-		'value'      => array(),
-		'name'       => array(),
-		'tabindex'   => array(),
-		'action'     => array(),
-		'method'     => array(),
-		'for'        => array(),
-		'width'      => array(),
-		'height'     => array(),
-		'data'       => array(),
-		'title'      => array(),
-		'checked'=>true,
-		'select'=>array(),
-		'option'=>array(),
-		'selected'=>array(),
-		'multiple'=>array(),
-	);
+		$fields = wp_kses_allowed_html( 'post' );
+		$allowed_atts = array(
+			'align'      => array(),
+			'class'      => array(),
+			'type'       => array(),
+			'id'         => array(),
+			'dir'        => array(),
+			'lang'       => array(),
+			'style'      => array(),
+			'xml:lang'   => array(),
+			'src'        => array(),
+			'alt'        => array(),
+			'href'       => array(),
+			'rel'        => array(),
+			'rev'        => array(),
+			'target'     => array(),
+			'novalidate' => array(),
+			'type'       => array(),
+			'value'      => array(),
+			'name'       => array(),
+			'tabindex'   => array(),
+			'action'     => array(),
+			'method'     => array(),
+			'for'        => array(),
+			'width'      => array(),
+			'height'     => array(),
+			'data'       => array(),
+			'title'      => array(),
+			'checked'=>true,
+			'select'=>array(),
+			'option'=>array(),
+			'selected'=>array(),
+			'multiple'=>array(),
+		);
 		$fields['form'] = array('action'         => true,
-					'accept'         => true,
-					'accept-charset' => true,
-					'enctype'        => true,
-					'method'         => array(),
-					'name'           => true,
-					'target'         => true,
-					'class'         => true);
+			'accept'         => true,
+			'accept-charset' => true,
+			'enctype'        => true,
+			'method'         => array(),
+			'name'           => true,
+			'target'         => true,
+			'class'         => true);
 		$fields['input'] = $allowed_atts;
 		$fields['select'] = $allowed_atts;
 		$fields['option'] = $allowed_atts;
@@ -409,7 +440,7 @@ class TMWNI_Settings {
 
 
 
-	return $fields;		
+		return $fields;		
 
 
 	}

@@ -10,6 +10,14 @@ use NetSuite\Classes\GetServerTimeRequest;
 use NetSuite\NetSuiteService;
 use NetSuite\Classes\Customer;
 use NetSuite\Classes\SalesOrder;
+use NetSuite\Classes\LocationSearchBasic;
+use NetSuite\Classes\SearchEnumMultiSelectField;
+use NetSuite\Classes\SearchRequest;
+use NetSuite\Classes\SearchBooleanField;
+use NetSuite\Classes\GetSelectValueFieldDescription;
+use NetSuite\Classes\getSelectValueRequest;
+use NetSuite\Classes\RecordType;
+use NetSuite\Classes\PriceLevelSearchBasic;
 
 
 
@@ -102,8 +110,15 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 	// Consturct Function
 	public function __construct() {
 
+
+
+		
+
+
 		// this will create the admin menu page
 		add_action('admin_menu', array($this, 'TMWNIAdminMenu'));
+
+		
 
 			//ajax for saving plugin admin settings
 		add_action('wp_ajax_load_tmwni_logs', array($this, 'getLogs'));
@@ -131,7 +146,27 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		add_action( 'edit_user_profile', array($this, 'extra_user_profile_fields' ) );
 
 		add_action('wp_ajax_tm_validate_ns_credentials', array($this, 'validateCredentials'));
+		
+		
 
+		if (TMWNI_Settings::areCredentialsDefined()) {
+
+			add_action('wp_ajax_tm_load_ns_promo_feilds_value', array($this, 'loadPromoFields'));
+
+
+			add_action('wp_ajax_tm_load_ns_locations', array($this, 'loadNsLocations'));
+
+
+			add_action('wp_ajax_tm_load_ns_price_levels', array($this, 'loadNsPriceLevels'));
+
+
+			
+
+			//add_action('init', array($this, 'getNetsuitePromoSettings'));
+		}
+
+
+		
 
 	}
 
@@ -139,7 +174,12 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		global $wpdb; 
 		global $TMWNI_OPTIONS;
 		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
-			die('Order Logs Nonce Error'); 
+			echo json_encode(array(
+				'draw' => 0,
+				'recordsTotal' => 0,
+				'recordsFiltered' => 0,
+				'data'=>0,
+			)); 
 		}
 		if (!empty($_POST)) {
 			$request = $_POST;
@@ -324,11 +364,18 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 					</div>';
 				}
 
-				$rows[] = '<div class="manually_order_sync_btn">
-				<a target="_blank" href="' . $order_link . '"  class="btn btn-success">View</a>&nbsp;
-				<button type="button" class="btn btn-success manual_order_sync"  data-id="' . $record['woo_object_id'] . '">Re-Submit</button>
-				<span class="loaderSpiner"></span>
-				</div>';
+				if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
+					$rows[] = '<div class="manually_order_sync_btn">
+					<a target="_blank" href="' . $order_link . '"  class="btn btn-success">View</a>&nbsp;
+					<button type="button" class="btn btn-success manual_order_sync"  data-id="' . $record['woo_object_id'] . '">Re-Submit</button>
+					<span class="loaderSpiner"></span>
+					</div>';
+				} else {
+					$rows[] = '<div class="manually_order_sync_btn">
+					<a target="_blank" href="' . $order_link . '"  class="btn btn-success">View</a>
+					</div>';
+				}
+				
 
 				$records[] = $rows;
 			# code...
@@ -362,18 +409,20 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 			try {
 				$rtn_data =  $ns_service->getServerTime($GetServerTimeRequest);
 				if (isset($rtn_data->getServerTimeResult->status->isSuccess) && 1 == $rtn_data->getServerTimeResult->status->isSuccess) {
-				$return['status'] = 0;
-				$return['message'] = 'Congrats. API connection is successful.';
+					$return['status'] = 1;
+					$return['message'] = 'Congrats. API connection is successful.';
 				} else {
 					if (isset($rtn_data->detail->invalidCredentialsFault->message) && !empty($rtn_data->detail->invalidCredentialsFault->message)) {
+						$return['status'] = 0;
 						$error_msg = $rtn_data->detail->invalidCredentialsFault->message;
-					$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
-					$this->handleLog(0, 0, 'validate creds', $error_msg);
+						$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
+						$this->handleLog(0, 0, 'validate creds', $error_msg);
 
 					}
-				
+					
 				}
 			} catch (SoapFault $e) {
+				$return['status'] = 0;
 				$return['message'] = 'Something wrong with API Credentials. Please check logs tab for more help';
 				$this->handleLog(0, 0, 'validate creds', $e->getMessage());
 			}
@@ -387,9 +436,200 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		} else {
 			$return['message'] = "API Credentials are not defined.Please 'enter & save' API credentials first";
 		}
-		echo json_encode($return);
-		die;
+
+
+
+		if (sanitize_text_field(isset($_SERVER['HTTP_X_REQUESTED_WITH'])) && '' !== sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']) && 'xmlhttprequest' ==    strtolower(sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']))) {
+			echo json_encode($return);
+			die;
+
+		} else {
+			return $return;
+		}
+
+
+		
 	}
+
+
+	public function getNetsuitePromoSettings() {
+
+		//For Promotion Custom Form
+		// $Promo_custom_form = get_option( 'netsuite_promo_customForm');
+		if (empty($Promo_custom_form)) {
+			$Promo_custom_form = self::getSettingsFromNS('customform', 'promotionCode');
+			update_option( 'netsuite_promo_customForm', $Promo_custom_form);
+		}
+
+		//For Promotion Discount Item
+		$Promo_DiscountItem = get_option( 'netsuite_promo_discountItem');		
+		if (empty($Promo_DiscountItem)) {
+			$Promo_DiscountItem = self::getSettingsFromNS('discount', 'promotionCode');
+			update_option( 'netsuite_promo_discountItem', $Promo_DiscountItem);
+		}
+
+		
+
+	}
+
+
+	public static function getNetsuiteInventoryLocationPriceSettings() {
+
+		//For Inventory Locations
+		$locations = get_option( 'netstuite_locations');
+		if (empty($locations)) {
+			$locations = self::getSettingsFromNS('location', 'inventoryItem');
+			update_option( 'netstuite_locations', $locations);
+		}
+
+
+		$price_levels = get_option( 'netstuite_price_levels');
+		if (empty($price_levels)) {
+			$price_levels = self::getPriceLevels();
+			update_option( 'netstuite_price_levels', $price_levels);
+		}
+
+	}
+
+
+
+	public static function getPriceLevels() {
+
+		$ns_service = new NetSuiteService();
+
+		$selectedField = new SearchBooleanField();
+		$selectedField->searchValue = false;
+
+
+		$priceLevelSearch = new PriceLevelSearchBasic();
+		$priceLevelSearch->isInactive = $selectedField;
+
+
+
+		$request = new SearchRequest();
+		$request->searchRecord = $priceLevelSearch;
+
+
+		try {
+			$searchResponse = $ns_service->search($request);
+			$data = [];
+			if ($searchResponse->searchResult->totalRecords > 0) {
+				foreach ($searchResponse->searchResult->recordList->record as $key => $value) {
+					$data[$value->name] = $value->name;
+				}
+			}
+
+			return $data;
+
+		} catch (SoapFault $e) {
+			return 0;
+		}
+
+	}
+
+
+
+	public function loadPromoFields() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('custom form search nonce error'); 
+		}
+
+
+
+		$fields = array('customform','discount');
+		
+		foreach ($fields as  $value) {
+			$data = $this->getSettingsFromNS($value, 'promotionCode');
+			if (!empty($data) && 'customform' == $value) {
+				update_option( 'netsuite_promo_customForm', $data);
+			}
+
+			if (!empty($data) && 'discount' == $value) {
+				update_option( 'netsuite_promo_discountItem', $data);
+			}
+		}
+
+		echo json_encode(array(
+			'status' => true,					
+		));
+
+
+		
+	}
+
+
+
+	public static function loadNsLocations() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('Locations search nonce error'); 
+		}
+
+		$locations = self::getSettingsFromNS('location', 'inventoryItem');
+		if (!empty($locations)) {
+			update_option( 'netstuite_locations', $locations);
+		}
+		echo json_encode(array(
+			'status' => true,					
+		));
+
+	}
+
+
+
+	public static function getSettingsFromNS( $field, $type) {
+
+		$ns_service = new NetSuiteService();
+
+		$SearchField = new GetSelectValueFieldDescription();
+		$SearchField->field = $field;
+		
+		$SearchField->recordType = $type;
+		$SearchField->recordTypeSpecified = true;
+		
+		$requestValue = new getSelectValueRequest();
+		$requestValue->fieldDescription = $SearchField;
+		$requestValue->pageIndex = 0;
+
+		try {
+			$getSelectValueResult = $ns_service->getSelectValue($requestValue);
+			$data = [];
+			if ($getSelectValueResult->getSelectValueResult->totalRecords > 0) {
+				foreach ($getSelectValueResult->getSelectValueResult->baseRefList->baseRef as $key => $value) {
+					$data[$value->internalId] = $value->name;
+				}
+			}
+
+
+			return $data;
+
+		} catch (SoapFault $e) {
+			return 0;
+		}
+
+	}
+
+
+	public static function loadNsPriceLevels() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('Price Level search nonce error'); 
+		}
+
+		$pricelevels = self::getPriceLevels();
+		if (!empty($pricelevels)) {
+			update_option( 'netstuite_price_levels', $pricelevels);
+		}
+		echo json_encode(array(
+			'status' => true,					
+		));
+
+	}
+
+
+
+
+
+	
+
 
 	public function extra_user_profile_fields( $user ) { 
 		$ns_customer_internal_id = get_the_author_meta( 'ns_customer_internal_id', $user->ID );?>
@@ -403,7 +643,7 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 				</td>  
 			</tr>
 		</table>
-	<?php 
+		<?php 
 	} 
 
 	public static function saveConditionalMappingForm() {
@@ -781,6 +1021,10 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 			}
 		}
 
+
+		do_action('tm_ns_after_meta_box_sales_order', $post);
+
+
 		
 	}
 
@@ -791,11 +1035,16 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
 			die('Nonce Error'); 
 		}
+
 		if (!empty($_POST['save_post'])) { 
-			$amazon_fba_settings = $_POST;
-			unset($amazon_fba_settings['current_tab_id']);
-			unset($amazon_fba_settings['action']);
-			unset($amazon_fba_settings['save_post']);
+			$tm_netsuite_settings = $_POST;
+
+
+			// pr($tm_netsuite_settings);die;
+
+			unset($tm_netsuite_settings['current_tab_id']);
+			unset($tm_netsuite_settings['action']);
+			unset($tm_netsuite_settings['save_post']);
 
 			if (!isset($_POST['ns_order_shiping_line_item_enable'])) {
 				unset($_POST['ns_order_shiping_line_item']);
@@ -809,8 +1058,17 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 					unset($_POST['ns_promo_custform_id']);	
 				}
 			}
+
+			if (isset($_POST['current_tab_id']) && 'inventory_settings' == $_POST['current_tab_id']) {
+				if (!isset($tm_netsuite_settings['enableInventorySync']) && !isset($tm_netsuite_settings['enablePriceSync'])) {
+					wp_clear_scheduled_hook('wp_tm_ns_manual_process_inventories_cron');
+					wp_clear_scheduled_hook('tm_ns_process_inventories');
+				}
+			}
+
+
 			if (isset($_POST['current_tab_id'])) {
-				TMWNI_Settings::saveOption(sanitize_text_field($_POST['current_tab_id']), $amazon_fba_settings);
+				TMWNI_Settings::saveOption(sanitize_text_field($_POST['current_tab_id']), $tm_netsuite_settings);
 
 			}
 
@@ -1033,20 +1291,64 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 
 	
 	public function TMWNISettingsTabs() {
+
+		
+
+		//$validate_credentials  = TMWNI_Settings::areCredentialsDefined() ? $this->validateCredentials() : '';
+
+
+
+
 		if (empty($_GET['tab'])) {
 			$current_tab_id = TMWNI_Settings::$default_tab;
 		} else {
 			$current_tab_id = sanitize_text_field($_GET['tab']);
 		}
 
+
+
+
 		if (strpos($current_tab_id, 'settings')) {
-			$options = TMWNI_Settings::getTabSettings($current_tab_id);
+			if ('inventory_settings' == $current_tab_id) {
+				if (isset($validate_credentials['status']) && 1== $validate_credentials['status']) {
+					$this->getNetsuiteInventoryLocationPriceSettings();
+				}
+			}
+
+
+
+			if ('order_settings' == $current_tab_id) {
+				if (isset($validate_credentials['status']) && 1== $validate_credentials['status']) {
+					$this->getNetsuitePromoSettings();
+				}
+
+				$order_general_settings = TMWNI_Settings::getTabSettings($current_tab_id . '_general_settings');
+				$order_fulfillment_settings = TMWNI_Settings::getTabSettings($current_tab_id . '_fulfillment_settings');
+
+				if (!empty($order_general_settings) && !empty($order_fulfillment_settings)) {
+					$options = array_merge($order_general_settings, $order_fulfillment_settings);
+				} elseif (!empty($order_general_settings)) {
+					$options = $order_general_settings;
+
+				} elseif (!empty($order_fulfillment_settings)) {
+					$options = $order_fulfillment_settings;
+
+				} else {
+					$options = TMWNI_Settings::getTabSettings($current_tab_id);
+				}
+			} else {
+				$options = TMWNI_Settings::getTabSettings($current_tab_id);
+			}
+
+			
+
 
 			$option_tag = '';
 
 			if ('order_settings' == $current_tab_id) {
 				$woo_order_statuses = wc_get_order_statuses();
 				$option_tag = 'order_cm_options';
+
 			}
 
 			if ('customer_settings' == $current_tab_id) {
@@ -1141,21 +1443,21 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 			$current_tab_id = sanitize_text_field($_GET['tab']);
 		}
 
-		wp_enqueue_script('tmwni-bootstrap-js', TMWNI_URL . '/assets/js/bootstrap3.3.7.min.js', false, '1.1', 'all');
+		wp_enqueue_script('tmwni-bootstrap-js', TMWNI_URL . '/assets/js/bootstrap3.3.7.min.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 
 		//Notify/Prettify JS
-		wp_enqueue_script('tmwni-admin-settings-notifyjs', TMWNI_URL . '/assets/js/notify.js', false, '1.1', 'all');
+		wp_enqueue_script('tmwni-admin-settings-notifyjs', TMWNI_URL . '/assets/js/notify.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 
-		wp_enqueue_script('tmwni-admin-settings-prettifyjs', TMWNI_URL . '/assets/js/prettify.js', false, '1.1', 'all');
+		wp_enqueue_script('tmwni-admin-settings-prettifyjs', TMWNI_URL . '/assets/js/prettify.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 
-		wp_enqueue_script('tmwni-common-js', TMWNI_URL . '/assets/js/common.js', false, '1.1', 'all');
+		wp_enqueue_script('tmwni-common-js', TMWNI_URL . '/assets/js/common.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 
 		if (strpos($current_tab_id, 'settings')) {
-
-			wp_enqueue_script('tmwni-admin-settings-js', TMWNI_URL . '/assets/js/admin-settings.js', false, '1.1', 'all');
+			
+			wp_enqueue_script('tmwni-admin-settings-js', TMWNI_URL . '/assets/js/admin-settings.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 			
 			//Select2 JS 
-			wp_enqueue_script('tmwni-admin-settings-select2-js', TMWNI_URL . '/assets/js/select2.min.js', false, '1.1', 'all');
+			wp_enqueue_script('tmwni-admin-settings-select2-js', TMWNI_URL . '/assets/js/select2.min.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 			
 			wp_localize_script('tmwni-admin-settings-js', 'tmwni_admin_settings_js', 
 				array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce('security_nonce')));
@@ -1164,7 +1466,7 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		if ('logs' == $current_tab_id) {
 
 			wp_enqueue_script('tmwni-jquery-dataTables-js', TMWNI_URL . '/assets/js/jquery.dataTables.min.js', false, '1.1', 'all');
-			wp_enqueue_script('tmwni-admin-log', TMWNI_URL . '/assets/js/admin-logs.js', false, '1.1', 'all');
+			wp_enqueue_script('tmwni-admin-log', TMWNI_URL . '/assets/js/admin-logs.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 				// in JavaScript, object properties are accessed as ajax_object.ajax_url, ajax_object.we_value
 			wp_localize_script('tmwni-admin-log', 'tmwni_admin_log', array('ajax_url' => admin_url('admin-ajax.php'),'nonce'=>wp_create_nonce('security_nonce')));
 		}
@@ -1172,8 +1474,8 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 
 		if ('dashboard' == $current_tab_id) {
 
-			wp_enqueue_script('tmwni-jquery-dataTables-js', TMWNI_URL . '/assets/js/jquery.dataTables.min.js', false, '1.1', 'all');
-			wp_enqueue_script('tmwni-admin-dashboard', TMWNI_URL . '/assets/js/admin-dashboard.js', false, '1.1', 'all');
+			wp_enqueue_script('tmwni-jquery-dataTables-js', TMWNI_URL . '/assets/js/jquery.dataTables.min.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
+			wp_enqueue_script('tmwni-admin-dashboard', TMWNI_URL . '/assets/js/admin-dashboard.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
 				// in JavaScript, object properties are accessed as ajax_object.ajax_url, ajax_object.we_value
 			wp_localize_script('tmwni-admin-dashboard', 'tmwni_admin_dashboard', array('ajax_url' => admin_url('admin-ajax.php'),'nonce'=>wp_create_nonce('security_nonce')));
 		}

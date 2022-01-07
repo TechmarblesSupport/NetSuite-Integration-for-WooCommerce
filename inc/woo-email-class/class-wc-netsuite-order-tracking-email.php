@@ -4,7 +4,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 exit; // Exit if accessed directly
 }
 
-if ( ! class_exists( 'WC_UPS_Order_TrackingNo_Email', false ) ) :
+if ( ! class_exists( 'WC_NetSuite_Order_Tracking_No', false ) ) :
 
 /**
  * A custom UPS Order Status WooCommerce Email class
@@ -12,7 +12,7 @@ if ( ! class_exists( 'WC_UPS_Order_TrackingNo_Email', false ) ) :
  * @since 0.1
  * @extends \WC_Email
  */
-	class WC_UPS_Order_TrackingNo_Email extends WC_Email {
+	class WC_NetSuite_Order_Tracking_No extends WC_Email {
 
 		 /**
 		 * Set email defaults
@@ -22,24 +22,24 @@ if ( ! class_exists( 'WC_UPS_Order_TrackingNo_Email', false ) ) :
 		public function __construct() {
 
 			// set ID, this simply needs to be a unique name
-			$this->id = 'wc_ups_order_trackingno_recieved';
+			$this->id = 'wc_netsuite_order_tracking';
 
 			$this->customer_email = true;
 
 			// this is the title in WooCommerce Email settings
-			$this->title = __( 'UPS Order Tracking No.', 'woocommerce' );
+			$this->title = __( 'NetSuite Order Tracking', 'woocommerce' );
 
 			// this is the description in WooCommerce email settings
-			$this->description = __( 'order status notification emails will be sent to customer ', 'woocommerce' );
+			$this->description = __( 'NetSuite order tracking email sent to customer ', 'woocommerce' );
 
 			// these are the default heading and subject lines that can be overridden using the settings
-			$this->heading = 'Order Tracking No.';
-			$this->subject = 'Order Tracking No.';
+			$this->heading = 'Order Tracking';
+			$this->subject = 'Order Tracking';
 
 			$this->template_base  = TMWNI_DIR . 'woocommerce/' ;	// Fix the template base lookup for use on admin screen template path display
 
-			$this->template_html  = 'emails/email-ups-trackingno-recieved.php';
-			$this->template_plain = 'emails/plain/email-ups-trackingno-recieved.php';
+			$this->template_html  = 'emails/email-netsuite-trackingno-recieved.php';
+			$this->template_plain = 'emails/plain/email-netsuite-tårackingno-recieved.php';
 
 			parent::__construct();
 
@@ -154,4 +154,4 @@ if ( ! class_exists( 'WC_UPS_Order_TrackingNo_Email', false ) ) :
 
 endif;
 
-return new WC_UPS_Order_TrackingNo_Email();
+return new WC_NetSuite_Order_Tracking_No();

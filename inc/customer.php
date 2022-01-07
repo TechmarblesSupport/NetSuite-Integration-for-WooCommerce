@@ -112,8 +112,14 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 			$this->customerConditionalMapping($customer_data, $order);
 
+			$customer->entityId = $customer_data['email'];
+
 			$this->createRequest($customer, $customer_data);
 
+			if (isset($TMWNI_OPTIONS['isEntityIdAuto']) && 'on' == $TMWNI_OPTIONS['isEntityIdAuto'] ) {
+				$customer->entityId = ''; 
+			}
+			
 			$customer->addressbookList = $add_list;
 
 			if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
@@ -125,19 +131,20 @@ class CustomerClient extends CommonIntegrationFunctions {
 				$customer->lastName = $customer_data['lastName'];
 			}
 
+
 			$customer->email = $customer_data['email'];
 			$customer->phone = $customer_data['phone'];
 
-		$customer = apply_filters('tm_add_request_customer_data', $customer, $customer_data['customer_id'], $order_id);
-		
+			$customer = apply_filters('tm_add_request_customer_data', $customer, $customer_data['customer_id'], $order_id);
+			
 
-		$request = new AddRequest();
-		$request->record = $customer;
+			$request = new AddRequest();
+			$request->record = $customer;
 
-
-		// pr($request);die('zzz');
+			// pr($customer);
 			try {
 				$addResponse = $this->netsuiteService->add($request);
+				// pr($addResponse); die;
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
 					do_action('tm_netsuite_after_customer_add', $addResponse, $customer_data['customer_id'], $order_id);
 				}

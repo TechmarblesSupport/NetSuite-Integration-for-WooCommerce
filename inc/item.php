@@ -22,6 +22,9 @@ use Netsuite\Classes\RecordRef;
 use Netsuite\Classes\ItemAvailabilityFilter;
 use Netsuite\Classes\RecordRefList;
 use Netsuite\Classes\GetItemAvailabilityRequest;
+use Netsuite\Classes\SearchCustomFieldList;
+use NetSuite\Classes\SearchCustomField;
+use NetSuite\Classes\SearchStringCustomField;
 
 
 
@@ -190,7 +193,8 @@ class ItemClient extends CommonIntegrationFunctions {
 	 *
 	*/ 
 	private function _searchItem( $item_sku, $product_id) {
-		// pr($item_sku);
+		//pr($item_sku); die('zzzz');
+		//$item_sku = 'test store';
 
 		$response = array();
 		$response['status'] = 0;
@@ -206,7 +210,14 @@ class ItemClient extends CommonIntegrationFunctions {
 
 		//search on items
 		$search = new ItemSearchBasic();
-		$search->itemId = $SearchField;
+
+		if (!isset($TMWNI_OPTIONS['sku_mapping_field']) || empty($TMWNI_OPTIONS['sku_mapping_field']) ) {
+			$search->itemId = $SearchField;
+		} elseif ('customFieldList' == $TMWNI_OPTIONS['sku_mapping_field']) {
+			$search->{$TMWNI_OPTIONS['sku_mapping_field']} = $this->customSearchStringField($TMWNI_OPTIONS['sku_mapping_custom_field'], $item_sku);
+		} else {
+			$search->{$TMWNI_OPTIONS['sku_mapping_field']} = $SearchField;
+		}
 
 		//set search request
 		$search = apply_filters('tm_ns_search_item', $search, $item_sku, $product_id);
@@ -214,11 +225,13 @@ class ItemClient extends CommonIntegrationFunctions {
 		$request->searchRecord = $search;
 		$quantity = false;
 
+		// pr($search);
+		// die('*!*');
+
 		try {
 			//perofrm search request
-
 			$searchResponse = $this->netsuiteService->search($request);
-			// pr($searchResponse); die;
+
 			apply_filters('tm_ns_search_item_response', $searchResponse, $product_id);
 			if (!$searchResponse->searchResult->status->isSuccess) {
 
@@ -368,7 +381,7 @@ class ItemClient extends CommonIntegrationFunctions {
 				}
 
 			}
-			if (!empty($last_quantity)) {
+			if (!empty($last_quantity) || 0 != $quantity) {
 				$this->updateWooQuantity($product_id, $last_quantity);
 			}	
 
@@ -391,15 +404,10 @@ class ItemClient extends CommonIntegrationFunctions {
 			$quantity = $this->getItemQuantity($searchResponse, $item_location_id, $product_id, $item_internal_id);
 			
 			$quantity = apply_filters('tm_ns_item_quantity', $quantity, $searchResponse, $item_location_id, $product_id, $item_internal_id);
-			
-			if (!empty($quantity)) {
-
+			if (!empty($quantity) || 0 != $quantity) {
 				$this->updateWooQuantity($product_id, $quantity);
-				
-			}	
-
+			}
 		}
-
 	}
 
 	//update woo price
@@ -427,7 +435,7 @@ class ItemClient extends CommonIntegrationFunctions {
 		global $TMWNI_OPTIONS;	
 		if (!empty($searchResponse->searchResult->recordList->record[0]->locationsList)) {
 			$item_locations = $searchResponse->searchResult->recordList->record[0]->locationsList->locations;
-		}	 
+		}	
 		if (isset($item_locations) && !empty($item_locations)) {
 			$quantity = $this->_getItemQuantityfromLocations($item_locations, $item_location_id);
 
@@ -442,26 +450,47 @@ class ItemClient extends CommonIntegrationFunctions {
 
 
 	private function _getItemQuantityfromLocations( $item_locations, $item_location_id) {
-		$quantity = false;
 		global $TMWNI_OPTIONS;
-		if (isset($TMWNI_OPTIONS['inventoryDefaultLocation']) && 'on' == $TMWNI_OPTIONS['inventoryDefaultLocation'] ) {
+
+		if (isset($TMWNI_OPTIONS['inventorySyncField']) && !empty($TMWNI_OPTIONS['inventorySyncField'])) {
+			$quantityField = $TMWNI_OPTIONS['inventorySyncField'];
+		} else {
+			$quantityField = 'quantityAvailable';
+		}
+
+
+		if (isset($TMWNI_OPTIONS['inventoryDefaultLocation']) && ( 'on' == $TMWNI_OPTIONS['inventoryDefaultLocation'] || 2 == $TMWNI_OPTIONS['inventoryDefaultLocation'] )) {
 			if (isset($item_location_id) && !empty($item_location_id)) {
 				foreach ($item_locations as $item_location) {
-					if ($item_location_id == $item_location->locationId->internalId && !is_null($item_location->quantityAvailable)) {
-						$quantity = (int) $item_location->quantityAvailable;
+					if ($item_location_id == $item_location->locationId->internalId && !is_null($item_location->$quantityField)) {
+						$quantity = (int) $item_location->$quantityField;
+					}
+				}
+			} else {
+				foreach ($item_locations as $item_location) {
+					if (!is_null($item_location->$quantityField)) {
+						$quantity += (int) $item_location->$quantityField;
+					}
+				}
+
+			}
+		} elseif (!isset($TMWNI_OPTIONS['inventoryDefaultLocation']) || 1 == $TMWNI_OPTIONS['inventoryDefaultLocation'] ) {
+			foreach ($item_locations as $item_location) {
+				if (!is_null($item_location->$quantityField)) {
+					$quantity += (int) $item_location->$quantityField;
+				}
+			}
+		} elseif (isset($TMWNI_OPTIONS['inventoryDefaultLocation']) || 3 == $TMWNI_OPTIONS['inventoryDefaultLocation'] ) {
+			foreach ($item_locations as $item_location) {
+				if (!is_null($item_location->$quantityField)) {
+					if (in_array($item_location->locationId->internalId, $TMWNI_OPTIONS['netstuite_locations'] )) {
+						$quantity += (int) $item_location->$quantityField;
 					}
 				}
 			}
-		} else {
-			foreach ($item_locations as $item_location) {
-				if (!is_null($item_location->quantityAvailable)) {
-					$quantity += (int) $item_location->quantityAvailable;
-				}
-			}
 		}
-		return $quantity; 
 
-
+		return !empty($quantity) ? $quantity : 0; 
 	}
 
 
@@ -471,13 +500,18 @@ class ItemClient extends CommonIntegrationFunctions {
 			update_post_meta($product_id, '_stock', $quantity);
 			if (isset($TMWNI_OPTIONS['overrideManageStock']) && 'on' == $TMWNI_OPTIONS['overrideManageStock'] ) {
 				$manage_stock = update_post_meta($product_id, '_manage_stock', 'yes');
-			} else {
-				$this->updateStock($product_id, $quantity);
-			}
+			} 
+			 // else {
+			$this->updateStock($product_id, $quantity);
+			// }
+
+			if (!empty($quantity) && 0!= $quantity) {
 			$old_count = get_option('updated_products_count');
 			$new_count = $old_count + 1;
 			$content = '<p><b>Action: Inventory updated</b></p>';
 			$this->updateLogFileContent($content, $new_count);
+			}
+			
 		}
 	}
 
@@ -547,6 +581,39 @@ class ItemClient extends CommonIntegrationFunctions {
 		if (0 != $new_count) {
 			update_option('updated_products_count', $new_count);
 		}
+	}
+
+
+	/**
+	 * Creating custom field list array.
+	 */
+	public function customSearchFieldList( $custfield) {
+		$customFieldList = new SearchCustomFieldList();
+		$customFieldList->customField = [$custfield];
+		return $customFieldList;
+	}
+
+
+	/**
+	 * Creating custom string field instance.
+	 */
+	public function customSearchField( $scriptId, $value) {
+		$custfield = new SearchCustomField();
+		$custfield->internalId = $scriptId;
+		$custfield->value = $value;
+		return $this->customSearchFieldList($custfield);
+	}
+
+	/**
+	 * Creating custom string field instance.
+	 */
+	public function customSearchStringField( $scriptId, $value) {
+		
+		$custfield = new SearchStringCustomField();
+		$custfield->scriptId = $scriptId;
+		$custfield->searchValue = $value;
+		$custfield->operator = 'is';
+		return $this->customSearchFieldList($custfield);
 	}
 
 

@@ -41,13 +41,14 @@ $ups_trackingno = get_post_meta($orderId, 'ywot_tracking_code', true);
 <?php 
 /* translators: %s Order date */
 printf( esc_html__( 'Hi %s,', 'woocommerce' ), esc_html( $order->get_billing_first_name() ) ); 
+
 ?>
 </p>
 	<p>
 	<?php
 		/* translators: %s Order date */
 		// printf( esc_html__( 'Your order has been picked up by UPS on %s:', 'woocommerce' ), esc_html( wc_format_datetime( $order->get_date_created() ) ) );
-		printf( esc_html__( 'Your order has been picked up by UPS', 'woocommerce' ));
+		printf( esc_html__( 'Your order has been picked up', 'woocommerce' ));
 	?>
 	</p>
 	<p>

@@ -5,7 +5,7 @@
 class Manually_Update_Inventory extends WP_Background_Process {
 
 	
-	protected $action = 'manual_update_inventory_process';
+	protected $action = 'tm_ns_manual_process_inventories';
 
 	
 	protected function task( $data ) {

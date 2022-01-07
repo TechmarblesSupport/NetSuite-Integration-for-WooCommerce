@@ -1,7 +1,19 @@
 *** NetSuite Integration for WooCommerce Changelog ***
+2022-06-01 - version 1.1.8
+* Add feature search sku with custom field
+* Add price level feature 
+
+
+2021-12-24 - version 1.1.7
+* update Fulfillment feature 
+
+2021-12-16 - version 1.1.6
+* Support get inventory from selected locations, 
+* Abitily to search sku with selected field
+* support get inventory from quantity on hand or quantity available
+
 2021-11-30 - version 1.1.5
 * Multisite support
-
 
 2021-11-29 - version 1.1.4
 * Fiters updated

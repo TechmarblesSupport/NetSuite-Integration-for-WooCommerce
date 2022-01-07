@@ -10,62 +10,33 @@ class NS_Inventory {
 	 */
 	public function __construct() {
 		global $TMWNI_OPTIONS;
-		add_action('wp_ajax_update_woo_inventory', array($this,'tmNsUpdateWooInventory'));
-		add_action('wp_ajax_fetch_inventory_progress', array($this,'fetchInventoryUpdateStatus'));
-		// add_action('wp_ajax_fetch_inventory_progress', array($this,'fetchInventoryUpdateStatus'));
-		require_once( 'background-process/class-manual-update-inventory.php' );
-		$this->Manual_update_inventory = new Manually_Update_Inventory();
-
-
-		if (!empty($_GET['ns_manual_update_inventory']) && 1 == $_GET['ns_manual_update_inventory']) {
-			if (( isset($TMWNI_OPTIONS['enableInventorySync']) && 'on' == $TMWNI_OPTIONS['enableInventorySync'] ) || ( isset($TMWNI_OPTIONS['enablePriceSync']) && 'on' == $TMWNI_OPTIONS['enablePriceSync'] )) {
-				if (TMWNI_Settings::areCredentialsDefined()) {
-					$this->updateWooInventory();
-					$url = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : '';
-					require_once ABSPATH . '/wp-includes/pluggable.php';
-					wp_safe_redirect($url);
-					exit();
-				} else {
-					die('Please setup API credentials first');
-				}
-			} else {
-				die('Please enable inventory sync first');
-			}
-		}
-
-		if (!empty($_GET['ns_manual_search_product']) && 1 == $_GET['ns_manual_search_product']) {
-			if (TMWNI_Settings::areCredentialsDefined()) {
-				$this->assignInternalID();
-				$url = isset($_SERVER['HTTP_REFERER']) ? esc_url_raw($_SERVER['HTTP_REFERER']) : '';
-				require_once ABSPATH . '/wp-includes/pluggable.php';
-				wp_safe_redirect($url);
-				exit();
-			} else {
-				die('Please setup API credentials first');
-			}
-		}
-
-
-		// if (!empty($_GET['tester']) && 1 == $_GET['tester']) {
-		// 	if (TMWNI_Settings::areCredentialsDefined()) {
-		// 		require_once(TMWNI_DIR . 'inc/item.php');
-		// 		$netsuiteClient = new ItemClient();
-		// 		$netsuiteClient->searchItemUpdateInventory('one',1);
-		// 		exit();
-		// 	} else {
-		// 		die('Please setup API credentials first');
-		// 	}
-		// }
+		
 
 		if (TMWNI_Settings::areCredentialsDefined()) {
 			if (( isset($TMWNI_OPTIONS['enableInventorySync']) && 'on' == $TMWNI_OPTIONS['enableInventorySync'] ) || ( isset($TMWNI_OPTIONS['enablePriceSync']) && 'on' == $TMWNI_OPTIONS['enablePriceSync'] )) {
+				add_action('wp_ajax_update_woo_inventory', array($this,'tmNsUpdateWooInventory'));
+				add_action('wp_ajax_fetch_inventory_progress', array($this,'fetchInventoryUpdateStatus'));
+				// add_action('wp_ajax_fetch_inventory_progress', array($this,'fetchInventoryUpdateStatus'));
+				require_once( 'background-process/class-manual-update-inventory.php' );
+				
+				$this->Manual_update_inventory = new Manually_Update_Inventory();
 					
 				add_action( 'init', array( $this, 'register_inventory_cron'));
 				add_action('tm_ns_process_inventories', array($this, 'updateWooInventory'));
 			}
 		}
-			add_filter('cron_schedules', array($this,'custom_cron_schedules'));
+		add_filter('cron_schedules', array($this,'custom_cron_schedules'));
+		//add_filter('init', array($this,'test'));
 	}
+
+
+	// public function test(){
+	// 	if (!empty($_GET['tester']) && 1 == $_GET['tester']) {
+	// 	$this->updateWooInventory();
+
+	// 	}
+
+	// } 
 
 
 	public function tmNsUpdateWooInventory() {

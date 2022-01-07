@@ -5,9 +5,6 @@ foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
 	require_once $filename;
 }
 
-
-
-
 use NetSuite\NetSuiteService;
 use NetSuite\Classes\CustomerAddressbookList;
 use NetSuite\Classes\CustomerAddressbook;
@@ -24,17 +21,19 @@ use NetSuite\Classes\ListOrRecordRef;
 use NetSuite\Classes\Record;
 use NetSuite\Classes\BaseRef;
 use NetSuite\Classes\PriceLevel;
-
-
-
-
-
-
-
-
-
-
-
+use NetSuite\Classes\GetSelectValueFieldDescription;
+use NetSuite\Classes\getSelectValueRequest;
+use NetSuite\Classes\RecordType;
+use NetSuite\Classes\SearchMultiSelectField;
+use NetSuite\Classes\SEARCHENUMMULTISELECTFIELDOPERATOR;
+use NetSuite\Classes\TransactionSearchBasic;
+use NetSuite\Classes\SearchRequest;
+use NetSuite\Classes\AccountSearchBasic;
+use NetSuite\Classes\SearchStringField;
+use NetSuite\Classes\SearchStringFieldOperator;
+use NetSuite\Classes\TermSearchBasic;
+use NetSuite\Classes\SearchBooleanField;
+use NetSuite\Classes\PriceLevelSearchBasic;
 
 class TMWNI_Loader {
 
@@ -57,88 +56,204 @@ class TMWNI_Loader {
 
 		global $TMWNI_OPTIONS;
 		
-
-		if (TMWNI_Settings::areCredentialsDefined()) {
-
-			$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
-
-
-			require_once TMWNI_DIR . 'inc/inventory.php';
-			
-			
-			if (isset($TMWNI_OPTIONS['enableCustomerSync']) && 'on' == $TMWNI_OPTIONS['enableCustomerSync']) {
-				//USER PROFILE HOOKS
-				//wordpress user register
-				add_action('user_register', array($this, 'addUpdateNetsuiteCustomer'), 999);
-
-				//wooocommerce customer created
-				add_action('woocommerce_created_customer', array($this, 'addUpdateNetsuiteCustomer'));
-
-				//hook for detecting customer address save
-				add_action('woocommerce_customer_save_address', array($this, 'addUpdateNetsuiteCustomer'));
-
-				//hook for detetcting update in user profile
-				add_action('profile_update', array($this, 'profileUpdateNetSuiteCustomer'));
-			}
-
-			add_action('wp_ajax_manual_order_sync', array($this, 'ManualOrderSync'));
+		if (class_exists('SOAPClient') ) {
+			if (TMWNI_Settings::areCredentialsDefined()) {
 
 
 
-			add_action('woocommerce_order_actions', array($this, 'sync_to_netsuite_action'));
+				$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+				require_once TMWNI_DIR . 'inc/inventory.php';
 
-			add_action('woocommerce_order_action_sync_to_netsuite', array($this, 'sync_to_netsuite'));
-			
-			if (isset($TMWNI_OPTIONS['ns_order_autosync_status']) && !empty($TMWNI_OPTIONS['ns_order_autosync_status'])) {
+				
+
+				if (isset($TMWNI_OPTIONS['enableCustomerSync']) && 'on' == $TMWNI_OPTIONS['enableCustomerSync']) {
+					//USER PROFILE HOOKS
+					//wordpress user register
+					add_action('user_register', array($this, 'addUpdateNetsuiteCustomer'), 999);
+
+					//wooocommerce customer created
+					add_action('woocommerce_created_customer', array($this, 'addUpdateNetsuiteCustomer'));
+
+					//hook for detecting customer address save
+					add_action('woocommerce_customer_save_address', array($this, 'addUpdateNetsuiteCustomer'));
+
+					//hook for detetcting update in user profile
+					add_action('profile_update', array($this, 'profileUpdateNetSuiteCustomer'));
+				}
 
 				if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
-					//dynamic order status
-					add_action('woocommerce_order_status_' . $TMWNI_OPTIONS['ns_order_autosync_status'], array($this, 'addNetsuiteOrder'));
+
+					add_action('wp_ajax_manual_order_sync', array($this, 'ManualOrderSync'));
+
+					add_action('woocommerce_order_actions', array($this, 'sync_to_netsuite_action'));
+
+					add_action('woocommerce_order_action_sync_to_netsuite', array($this, 'sync_to_netsuite'));
+
+
+					if (isset($TMWNI_OPTIONS['ns_order_autosync_status']) && !empty($TMWNI_OPTIONS['ns_order_autosync_status'])) {
+						// var_dump(is_checkout());die;
+						
+						if ('pending' == $TMWNI_OPTIONS['ns_order_autosync_status']) {
+							add_action( 'woocommerce_checkout_order_processed', array($this, 'syncNetSuiteOrder') ); 
+						} else {
+							add_action('woocommerce_order_status_' . $TMWNI_OPTIONS['ns_order_autosync_status'], array($this, 'syncNetSuiteOrder'));
+						}
+
+						
+					} else {
+						
+						add_action('woocommerce_order_status_processing', array($this, 'syncNetSuiteOrder'));
+						
+					}
+
+					if (isset($TMWNI_OPTIONS['ns_autosync_on_order_status_changes']) && !empty($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'])) {
+						foreach ($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'] as $key => $value ) {
+							add_action( 'woocommerce_order_status_' . $value, array($this, 'addNetsuiteOrderOnStatusChange'), 10, 2 );
+						}
+					}
+					// Process all queued order sync to netsuite
+					//add_action( 'tm_ns_process_order_queue', array( $this, 'addNetsuiteOrder' ), 10, 1 );
 				}
-			} else {
-				//order status processing
-				add_action('woocommerce_order_status_processing', array($this, 'sync_to_netsuite'));
-			}
 
-			if (isset($TMWNI_OPTIONS['ns_autosync_on_order_status_changes']) && !empty($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'])) {
-				foreach ($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'] as $key => $value ) {
-					add_action( 'woocommerce_order_status_' . $value, array($this, 'addNetsuiteOrderOnStatusChange'), 10, 2 );
+
+
+				if (( isset($TMWNI_OPTIONS['enableFulfilmentSync']) && 'on' == $TMWNI_OPTIONS['enableFulfilmentSync'] ) || ( isset($TMWNI_OPTIONS['ns_order_tracking_email']) && 'on' == $TMWNI_OPTIONS['ns_order_tracking_email'] ) || ( isset($TMWNI_OPTIONS['ns_order_auto_complete']) && 'on' == $TMWNI_OPTIONS['ns_order_auto_complete'] )) {
+
+					if (!wp_next_scheduled('tm_ns_fetch_order_tracking_info')) {
+						wp_schedule_event(time(), 'hourly', 'tm_ns_fetch_order_tracking_info');
+					}
+
+				//Fetching Order tracking info
+					add_action('tm_ns_fetch_order_tracking_info', array($this, 'fetchOrderTrackingInfo'));
+
+				//Custom woo order tracking email
+					add_filter( 'woocommerce_email_classes', array($this,'ns_order_tracking_woocommerce_email') );
+
+					if (isset($TMWNI_OPTIONS['syncDeletedOrders']) && 'on' == $TMWNI_OPTIONS['syncDeletedOrders']) {
+						add_action( 'wp_trash_post', array($this, 'deleteNetsuiteOrder') );
+					}
+
+					if (isset($TMWNI_OPTIONS['recreateOnRestore']) && 'on' == $TMWNI_OPTIONS['recreateOnRestore']) {
+						add_action( 'untrashed_post', array($this, 'restoreNetsuiteOrder') );
+					}
 				}
-			}
 
-			add_filter('cron_schedules', array($this, 'orderTrackingCron'));
 
-			if (!wp_next_scheduled('fetch_order_tracking_info')) {
-				wp_schedule_event(time(), 'once_every_hour', 'fetch_order_tracking_info');
-			}
 
-			//Fetching Order tracking info
-			add_action('fetch_order_tracking_info', array($this, 'fetchOrderTrackingInfo'));
+			} 
 
-			//Custom woo order tracking email
-			add_filter( 'woocommerce_email_classes', array($this,'ns_ups_order_tracking_woocommerce_email') );
 
-			if (isset($TMWNI_OPTIONS['syncDeletedOrders']) && 'on' == $TMWNI_OPTIONS['syncDeletedOrders']) {
-				add_action( 'wp_trash_post', array($this, 'deleteNetsuiteOrder') );
-			}
-
-			if (isset($TMWNI_OPTIONS['recreateOnRestore']) && 'on' == $TMWNI_OPTIONS['recreateOnRestore']) {
-				add_action( 'untrashed_post', array($this, 'restoreNetsuiteOrder') );
-			}
-
+		} else {
+			add_action( 'admin_notices', array($this,'soap_notice' ));
 		}
 
+	}
 
+
+
+
+
+	public function soap_notice() {
+		?>
+		<div class="notice notice-warning is-dismissible">
+			<p>PHP SOAP Extension is not enabled on your server.<a target="_blank" href="https://www.php.net/manual/en/soap.setup.php">Know more</a></p>
+		</div>
+		<?php
+
+
+	}
+
+
+
+
+
+	public function syncNetSuiteOrder( $order_id) {
+		$this->addNetsuiteOrder($order_id);
+	}
+	
+
+	/**
+	 * Sync Order
+	 *
+	*/ 
+	public function addNetsuiteOrder( $order_id) {
+
+
+		global $TMWNI_OPTIONS;
+
+		require_once TMWNI_DIR . 'inc/order.php';
+		//instance of API client
+		$this->netsuiteOrderClient = new OrderClient();
+
+
+		$order = wc_get_order($order_id);
+
+		//get user id assocaited with order
+		$user_id = $order->get_user_id();
+
+		$check_if_sent = get_post_meta($order_id, TMWNI_Settings::$ns_order_id, true);
+
+
+		if (empty($check_if_sent)) {
+			if (0 == $user_id) {
+				$customer_internal_id = $this->addUpdateNetsuiteGuestCustomer($order);
+				if (!empty($customer_internal_id)) {
+					update_post_meta($order_id, TMWNI_Settings::$ns_guest_customer_id, $customer_internal_id);
+				}
+			} else {
+				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
+			}
+
+			//get required order data
+
+			$order_data = $this->getOrderData($order_id , TMWNI_Settings::$ns_rec_type_order);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
+
+			//set order id
+			$this->netsuiteOrderClient->order_id = $order_id;
+
+			if (0 != $customer_internal_id) {
+				//add order on netsuite
+				$order_netsuite_internal_id = $this->netsuiteOrderClient->addOrder($order_data, $customer_internal_id);
+				// pr($order_netsuite_internal_id);die;
+				if (0 !== $order_netsuite_internal_id) {
+					update_post_meta($order_id, TMWNI_Settings::$ns_order_id, $order_netsuite_internal_id);
+				}
+			}
+		} else {
+			if (0 == $user_id) {
+				$customer_internal_id = $this->addUpdateNetsuiteGuestCustomer($order);
+			} else {
+				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
+			}
+			
+
+			//get required order data
+			$order_data = $this->getOrderData($order_id, TMWNI_Settings::$ns_rec_type_order);
+			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
+
+			$order_netsuite_internal_id = $this->netsuiteOrderClient->updateOrder($order_data, $customer_internal_id, $check_if_sent);
+			
+		}
+		
+		if (isset($order_netsuite_internal_id) && 0 != $order_netsuite_internal_id) {
+			update_post_meta( $order_id, 'tm_netsuite_order_processed', true );
+		} else {
+			delete_post_meta($order_id, '_tm_netsuite_process_waiting');
+			delete_post_meta($order_id, 'tm_netsuite_order_processed');
+		}
+
+		return $order_netsuite_internal_id;
 	}
 
 	/**
 	 * Order Tracking Woo email
 	 *
 	*/ 
-	public function ns_ups_order_tracking_woocommerce_email( $email_classes ) {
+	public function ns_order_tracking_woocommerce_email( $email_classes ) {
 
 		// add the custom email class to the list of email classes that WooCommerce loads
-		$email_classes['WC_Ups_Order_Tracking_No'] = require( TMWNI_DIR . 'inc/woo-email-class/class-wc-ups-order-trackingno-email.php' );
+		$email_classes['WC_NetSuite_Order_Tracking_No'] = require( TMWNI_DIR . 'inc/woo-email-class/class-wc-netsuite-order-tracking-email.php' );
 
 		return $email_classes;
 
@@ -153,12 +268,16 @@ class TMWNI_Loader {
 		return $actions;
 	}
 
+
+
 	public function ManualOrderSync() {
 		global $TMWNI_OPTIONS;
 
 		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
 			die('Order Logs Nonce Error'); 
 		}
+
+
 		
 		if (isset($_POST['order_id']) && !empty($_POST['order_id']) ) {
 			if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
@@ -189,9 +308,11 @@ class TMWNI_Loader {
 	 *
 	*/ 
 	public function addNetsuiteOrderOnStatusChange( $order_id, $instance) {
+
 		global $TMWNI_OPTIONS;
 		if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
 			$this->addNetsuiteOrder($order_id);
+			// $this->push_orders_to_queue($order_id);
 		}
 		return;
 	}
@@ -206,9 +327,11 @@ class TMWNI_Loader {
 		if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
 			if (!is_object($order)) {
 				$this->addNetsuiteOrder($order);
+				// $this->push_orders_to_queue($order);
 
 			} else {
 				$this->addNetsuiteOrder($order->get_id());
+				// $this->push_orders_to_queue($order->get_id());
 
 			}
 		}
@@ -219,6 +342,9 @@ class TMWNI_Loader {
 	 * Hook function which will recieve customer id and pass it to net  update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
 	 */
 	public function addUpdateNetsuiteCustomer( $customer_id, $order_id = 0) {
+		if ($order_id) {
+			do_action('before_add_update_netsuite_customer', $customer_id, $order_id);
+		}
 
 
 		
@@ -298,7 +424,7 @@ class TMWNI_Loader {
 					$alb->addressbookAddress->addr2 = $address['address2'];
 					$alb->addressbookAddress->addr3 = '';
 					$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-;
+					;
 					$alb->addressbookAddress->addrPhone = $phone;
 					$alb->addressbookAddress->addrText = $address['address1'];
 					$alb->addressbookAddress->addressee = $address['companyName'];
@@ -320,7 +446,7 @@ class TMWNI_Loader {
 					$als->addressbookAddress->addr2 = $address['address2'];
 					$als->addressbookAddress->addr3 = '';
 					$als->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-;
+					;
 					$als->addressbookAddress->addrPhone = '';
 					$als->addressbookAddress->addrText = $address['address1'];
 					$als->addressbookAddress->addressee = $address['companyName'];
@@ -355,6 +481,11 @@ class TMWNI_Loader {
 
 			return $customer_internal_id;
 
+		} else {
+			require_once TMWNI_DIR . 'inc/common.php';
+			$netsuiteCommonIntegrationFunctions = new CommonIntegrationFunctions();
+			$error_msg = 'Please select ' . $woo_customer_data->roles[0] . ' role in customer tab';
+			$netsuiteCommonIntegrationFunctions->handleLog(1, $customer_id, 'Customer', $error_msg);
 		}
 
 		return 0;
@@ -364,16 +495,25 @@ class TMWNI_Loader {
 	 *
 	*/ 
 	public function addUpdateNetsuiteGuestCustomer( $order) {
+
+		if ($order) {
+			$customer_internal_id = apply_filters('before_add_update_guest_netsuite_customer', 0, $order);
+			// do_action("before_add_update_guest_netsuite_customer",$order);
+		}
 		require_once TMWNI_DIR . 'inc/customer.php';
 		//instance of API client
 		$netsuiteCustomerClient = new CustomerClient();
 
 		$email = $order->get_billing_email();
-
+		
 		$customer_id = 0;
-		$customer_internal_id = 0;
-		//check if customer already registered on netsuite
-		$customer_internal_id = $netsuiteCustomerClient->searchCustomer($email);
+		// $customer_internal_id = 0;
+		// //check if customer already registered on netsuite
+		// $customer_internal_id = $netsuiteCustomerClient->searchCustomer($email);
+		if (empty($customer_internal_id)) {
+			$customer_internal_id = 0;
+			$customer_internal_id = $netsuiteCustomerClient->searchCustomer($email);
+		}
 		$first_name = $order->get_billing_first_name();
 		$last_name = $order->get_billing_last_name();
 		$company_name = $order->get_billing_company();
@@ -389,36 +529,6 @@ class TMWNI_Loader {
 			'companyName' => $company_name,
 			'phone' => $phone,
 		);
-
-
-
-		// if (isset($cust_address['country']) && !empty($cust_address['country'])) {
-		// 	$ns_country = TMWNI_Settings::$netsuite_country[$cust_address['country']];
-		// } else {
-		// 	$ns_country = '';
-		// }
-
-		// $al = new CustomerAddressbookList();
-		// $al->addressbook = new CustomerAddressbook();
-		// $al->addressbook->internalId = $customer_internal_id;
-		// $al->addressbook->defaultShipping = false;
-		// $al->addressbook->defaultBilling = true;
-		// $al->addressbook->isResidential = true;
-		// $al->addressbook->label = 'Customer Address';
-		// $al->addressbook->addressbookAddress = new Address();
-		// $al->addressbook->addressbookAddress->addr1 = $cust_address['address_1'];
-		// $al->addressbook->addressbookAddress->addr2 = $cust_address['address_2'];
-		// $al->addressbook->addressbookAddress->addr3 = '';
-		// $al->addressbook->addressbookAddress->addressee = $first_name . ' ' . $last_name;
-		// $al->addressbook->addressbookAddress->addrPhone = $phone;
-		// $al->addressbook->addressbookAddress->addrText = $cust_address['address_1'];
-		// $al->addressbook->addressbookAddress->attention = $company_name;
-		// $al->addressbook->addressbookAddress->city = $cust_address['city'];
-		// $al->addressbook->addressbookAddress->country = $ns_country;
-		// $al->addressbook->addressbookAddress->internalId = $customer_internal_id;
-		// $al->addressbook->addressbookAddress->override = false;
-		// $al->addressbook->addressbookAddress->state = $cust_address['state'];
-		// $al->addressbook->addressbookAddress->zip = $cust_address['postcode'];
 
 
 		$address_type = array('billing', 'shipping');
@@ -496,7 +606,6 @@ class TMWNI_Loader {
 
 
 
-
 		if (!empty($customer_internal_id)) {
 			$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $cust_address['state'], $cust_order_id);
 		} else {
@@ -505,70 +614,7 @@ class TMWNI_Loader {
 		}
 		return $customer_internal_id;
 	} 
-	/**
-	 * Sync Order
-	 *
-	*/ 
-	public function addNetsuiteOrder( $order_id) {
-
-		global $TMWNI_OPTIONS;
-
-		require_once TMWNI_DIR . 'inc/order.php';
-		//instance of API client
-		$this->netsuiteOrderClient = new OrderClient();
-
-
-		$order = new WC_Order($order_id);
-		//get user id assocaited with order
-		$user_id = $order->get_user_id();
-
-		$check_if_sent = get_post_meta($order_id, TMWNI_Settings::$ns_order_id, true);
-
-
-		if (empty($check_if_sent)) {
-			if (0 == $user_id) {
-				$customer_internal_id = $this->addUpdateNetsuiteGuestCustomer($order);
-				if (!empty($customer_internal_id)) {
-					update_post_meta($order_id, TMWNI_Settings::$ns_guest_customer_id, $customer_internal_id);
-				}
-			} else {
-				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
-			}
-
-			//get required order data
-
-			$order_data = $this->getOrderData($order_id , TMWNI_Settings::$ns_rec_type_order);
-			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
-
-			//set order id
-			$this->netsuiteOrderClient->order_id = $order_id;
-
-
-			if (0 != $customer_internal_id) {
-				//add order on netsuite
-				$order_netsuite_internal_id = $this->netsuiteOrderClient->addOrder($order_data, $customer_internal_id);
-				// pr($order_netsuite_internal_id);die;
-				if (0 !== $order_netsuite_internal_id) {
-					update_post_meta($order_id, TMWNI_Settings::$ns_order_id, $order_netsuite_internal_id);
-				}
-			}
-		} else {
-			if (0 == $user_id) {
-				$customer_internal_id = $this->addUpdateNetsuiteGuestCustomer($order);
-			} else {
-				$customer_internal_id = $this->addUpdateNetsuiteCustomer($user_id, $order_id);
-			}
-			
-
-			//get required order data
-			$order_data = $this->getOrderData($order_id, TMWNI_Settings::$ns_rec_type_order);
-			$order_data = apply_filters('tm_netsuite_order_data', $order_data, $order_id);
-
-			$order_netsuite_internal_id = $this->netsuiteOrderClient->updateOrder($order_data, $customer_internal_id, $check_if_sent);
-			
-		}
-		return $order_netsuite_internal_id;
-	}
+	
 
 	/**
 	 * Get Order Data
@@ -588,7 +634,7 @@ class TMWNI_Loader {
 		//get user id assocaited with order
 		$user_id = $order->get_user_id();
 		if (!$user_id) { //if customer is not a registered woocommerce user then use billing email
-			$data['customer_email'] = $order->billing_email;
+			$data['customer_email'] = $order->get_billing_email();
 		} else {  //else fetch user email from woocommerce 
 			$user_data = get_userdata($user_id);
 			$data['customer_email'] = $user_data->data->user_email;
@@ -648,6 +694,7 @@ class TMWNI_Loader {
 				$netsuite_internal_id = get_post_meta($order_item['product_id'], TMWNI_Settings::$ns_product_id, true);
 			}
 			//Search order item's internalId from Netsuite based on woocommerce product's SKU
+			
 			if (empty($netsuite_internal_id)) {
 				if (TMWNI_Settings::$ns_rec_type_order == $rec_type) {
 					$netsuite_internal_id = $this->netsuiteOrderClient->searchItem($product_sku, $order_item['product_id'], $order_item['variation_id']);
@@ -673,27 +720,29 @@ class TMWNI_Loader {
 			$items[$key]['total_tax'] = $order_item['total_tax'];
 			$items[$key]['locationId'] = $location_id;
 			$items[$key]['productId'] = $order_item['product_id'];
+			$items[$key]['subtotal'] = $order_item['subtotal'];
+
+			
 		}
 		$items = array_reverse($items);
 		
 		return $items;
 	}
 
-	/**
-	 * Order Cron
-	 *
-	*/ 
-	public function orderTrackingCron( $schedules) {
-		$schedules['once_every_hour'] = array('interval' => 3600, 'display' => 'Once every hour');
-		return $schedules;
-	}
+	
 
 	/**
 	 * Order tracking file include
 	 *
 	*/ 
 	public function fetchOrderTrackingInfo() {
-		require_once TMWNI_DIR . 'inc/orderTracking.php';
+		global $TMWNI_OPTIONS;
+		if (isset($TMWNI_OPTIONS['enableFulfilmentSync']) && 'on' == $TMWNI_OPTIONS['enableFulfilmentSync']) {
+			require_once TMWNI_DIR . 'inc/orderTracking.php';
+		} elseif (( isset($TMWNI_OPTIONS['ns_order_tracking_email']) && 'on' == $TMWNI_OPTIONS['ns_order_tracking_email'] ) || ( isset($TMWNI_OPTIONS['ns_order_auto_complete']) && 'on' == $TMWNI_OPTIONS['ns_order_auto_complete'] )) {
+			require_once TMWNI_DIR . 'inc/orderTracking.php';
+		}
+		
 	}
 
 	/**
@@ -705,12 +754,12 @@ class TMWNI_Loader {
 		if ('shop_order' == get_post_type($post_id)) {
 			$nsOrderInternalId = get_post_meta($post_id, TMWNI_Settings::$ns_order_id, true);
 			
-			delete_post_meta( $post_id, TMWNI_Settings::$ns_order_id);
 
 			if (!empty($nsOrderInternalId)) {
 				require_once TMWNI_DIR . 'inc/order.php';
 				$this->netsuiteOrderClient = new OrderClient();
 				$this->netsuiteOrderClient->deleteOrder($nsOrderInternalId);
+				delete_post_meta( $post_id, TMWNI_Settings::$ns_order_id);
 			}
 		}
 		return;

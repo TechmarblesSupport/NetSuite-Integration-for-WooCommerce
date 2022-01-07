@@ -44,7 +44,9 @@ use NetSuite\Classes\ListOrRecordRef;
 use NetSuite\Classes\MultiSelectCustomFieldRef;
 use NetSuite\Classes\BooleanCustomFieldRef;
 use NetSuite\Classes\DoubleCustomFieldRef;
-
+use Netsuite\Classes\SearchCustomFieldList;
+use NetSuite\Classes\SearchCustomField;
+use NetSuite\Classes\SearchStringCustomField;
 
 
 
@@ -77,12 +79,29 @@ class OrderClient extends CommonIntegrationFunctions {
 	 * ref: samples provided in Netsuite API toolkit
 	 */
 	public function searchItem( $item_sku, $product_id = 0, $variation_id = 0) {
+
 		$this->netsuiteService->setSearchPreferences(false, 20);
+
+		global $TMWNI_OPTIONS;
+
 		$SearchField = new SearchStringField();
 		$SearchField->operator = 'is';
 		$SearchField->searchValue = $item_sku;
 		$search = new ItemSearchBasic();
-		$search->itemId = $SearchField;
+
+		if (!isset($TMWNI_OPTIONS['sku_mapping_field']) || empty($TMWNI_OPTIONS['sku_mapping_field']) ) {
+
+			$search->itemId = $SearchField;
+
+		} elseif ('customFieldList' == $TMWNI_OPTIONS['sku_mapping_field']) {
+
+			$search->{$TMWNI_OPTIONS['sku_mapping_field']} = $this->customSearchField($TMWNI_OPTIONS['sku_mapping_custom_field'], $item_sku);
+
+		} else {
+
+			$search->{$TMWNI_OPTIONS['sku_mapping_field']} = $SearchField;
+
+		}
 
 
 		$search = apply_filters('tm_ns_order_search_item', $search, $item_sku, $product_id);
@@ -96,6 +115,8 @@ class OrderClient extends CommonIntegrationFunctions {
 			$object_id = $product_id;
 			$object = 'order product search';
 		}
+		// pr($search);
+		// die('**');
 		try {
 			$searchResponse = $this->netsuiteService->search($request);
 			if (!$searchResponse->searchResult->status->isSuccess) {
@@ -118,7 +139,7 @@ class OrderClient extends CommonIntegrationFunctions {
 						update_post_meta($product_id, TMWNI_Settings::$ns_product_id, $item_internal_id);
 					}
 					//get items location id 
-					$item_location_id = $searchResponse->searchResult->recordList->record[0]->location->internalId;
+					$item_location_id = isset($searchResponse->searchResult->recordList->record[0]->location->internalId) ? $searchResponse->searchResult->recordList->record[0]->location->internalId : '' ;
 					if (!empty($item_location_id)  || !is_null($item_location_id)) { 
 						if (!empty($variation_id)) {
 							update_post_meta($variation_id, 'ns_item_location_id', $item_location_id);
@@ -153,7 +174,7 @@ class OrderClient extends CommonIntegrationFunctions {
 			global $TMWNI_OPTIONS;
 
 			$order = $order_data['order'];
-			$order_coupons = $order->get_used_coupons();
+
 			$this->object_id = $order_data['order_id'];
 			$so = new SalesOrder();
 
@@ -234,7 +255,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 				$order = new WC_Order($order_data['order_id']);
 
-				$applied_coupons = $order->get_used_coupons();
+				$applied_coupons = $order->get_coupon_codes();
 
 				if (!empty($applied_coupons)) {
 					foreach ( $applied_coupons as $key => $value) {
@@ -282,7 +303,7 @@ class OrderClient extends CommonIntegrationFunctions {
 			try {
 
 				$addResponse = $this->netsuiteService->add($request);
-				// pr($addResponse); die;
+				//pr($addResponse); die;
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
 					$order_internal_id = $addResponse->writeResponse->baseRef->internalId;
 					do_action('tm_netsuite_after_order_add', $order_data, $customer_internal_id, $order_internal_id);
@@ -318,7 +339,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 
 			$order = $order_data['order'];
-			$order_coupons = $order->get_used_coupons();
+
 			$this->object_id = $order_data['order_id'];
 
 			$so = new SalesOrder();
@@ -378,7 +399,7 @@ class OrderClient extends CommonIntegrationFunctions {
 
 				$order = new WC_Order($order_data['order_id']);
 
-				$applied_coupons = $order->get_used_coupons();
+				$applied_coupons = $order->get_coupon_codes();
 
 				if (!empty($applied_coupons)) {
 					foreach ( $applied_coupons as $key => $value) {
@@ -418,7 +439,8 @@ class OrderClient extends CommonIntegrationFunctions {
 
 			$request = new UpdateRequest();
 			$request->record = $so;
-			//pr($so); die('zzz');
+
+			
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
 				//pr($updateResponse); die;
@@ -472,8 +494,8 @@ class OrderClient extends CommonIntegrationFunctions {
 				}
 
 				$soi[$key]->price = $item['unit_price'];
-				//$soi[$key]->amount = $item['unit_price'];
-				$soi[$key]->amount = $item['total'];
+				$soi[$key]->amount = $item['subtotal'];
+				//$soi[$key]->amount = $item['total'];
 			}
 
 			if (isset($TMWNI_OPTIONS['ns_order_shiping_line_item']) && !empty($TMWNI_OPTIONS['ns_order_shiping_line_item']) && isset($TMWNI_OPTIONS['ns_order_shiping_line_item_enable']) && !empty($TMWNI_OPTIONS['ns_order_shiping_line_item_enable']) ) {
@@ -793,6 +815,27 @@ class OrderClient extends CommonIntegrationFunctions {
 		return $this->customFieldList($custfieldselect);
 	}
 
+
+	/**
+	 * Creating custom field list array.
+	 */
+	public function customSearchFieldList( $custfield) {
+		$customFieldList = new SearchCustomFieldList();
+		$customFieldList->customField = [$custfield];
+		return $customFieldList;
+	}
+
+
+	/**
+	 * Creating custom string field instance.
+	 */
+	public function customSearchField( $scriptId, $value) {
+		$custfield = new SearchStringCustomField();
+		$custfield->scriptId = $scriptId;
+		$custfield->searchValue = $value;
+		$custfield->operator = 'is';
+		return $this->customSearchFieldList($custfield);
+	}
 
 	/**
 	 * Creating conditional mapping for orders.

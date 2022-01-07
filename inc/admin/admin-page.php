@@ -51,11 +51,6 @@ echo "target='_blank'"; }
 			</div>
 		<?php } ?>
 		 <?php if ('inventory_settings' == $current_tab_id) { ?>
-
-			<div class="notice notice-success">
-				<h4>Please make sure your NetSuite Item ID/Name matches with WooCommerce product SKU</h4>
-			</div>
-
 			<div class="notice notice-error">
 				<h4>If you have a large inventory, i.e. more than 1500 products then its recomended to use server crons. Some references on this are <a target="_blank" href="https://www.lucasrolff.com/wordpress/why-wp-cron-sucks/">Ref 1</a> , <a target="_blank" href="https://community.1and1.com/replace-wp-cron-in-wordpress-with-server-side-cron-job/">Ref 2</a>, <a target="_blank" href="http://chrislema.com/understanding-wp-cron/">Ref 3</a></h4>
 			</div>
