@@ -41,9 +41,7 @@ use NetSuite\Classes\DateCustomFieldRef;
 class CustomerClient extends CommonIntegrationFunctions {
 
 	public $netsuiteService;
-	public $object_id;
-	public $customerDummyFisrtName = 'Anonymous';
-	public $customerDummyLastName = 'Customer';
+	public $object_id;	
 	public $user_id;
 	public $custFields = array();
 
@@ -75,12 +73,20 @@ class CustomerClient extends CommonIntegrationFunctions {
 		$SearchField->searchValue = $email;
 		$search = new CustomerSearchBasic();
 		$search->email = $SearchField;
+		
+
+
+		$search = apply_filters('tm_ns_search_customer_request', $search, $email, $customer_id);
+
+
 		$request = new SearchRequest();
 		$request->searchRecord = $search;
+
 		try {
 			$searchResponse = $this->netsuiteService->search($request);
-			apply_filters('tm_ns_customer_response', $searchResponse, $customer_id);
-			return $this->handleAPISearchResponse($searchResponse, 'customer', $email);
+			$customer_internalId = $this->handleAPISearchResponse($searchResponse, 'customer', $email);
+			$customer_internalId = apply_filters('tm_ns_customer_response', $customer_internalId, $searchResponse, $customer_id);
+			return $customer_internalId;
 		} catch (SoapFault $e) {
 			$object = 'customer';
 			$error_msg = "SOAP API Error occured on '" . ucfirst($object) . " Search' operation failed for WooCommerce " . $object . ', ID = ' . $this->object_id . '. ';
@@ -112,23 +118,26 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 			$this->customerConditionalMapping($customer_data, $order);
 
-			$customer->entityId = $customer_data['email'];
+			if (!isset($TMWNI_OPTIONS['isEntityIdAuto'])) {
+				$customer->entityId = $customer_data['email'];
+			}
 
 			$this->createRequest($customer, $customer_data);
 
-			if (isset($TMWNI_OPTIONS['isEntityIdAuto']) && 'on' == $TMWNI_OPTIONS['isEntityIdAuto'] ) {
-				$customer->entityId = ''; 
-			}
 			
 			$customer->addressbookList = $add_list;
 
 			if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
 				$customer->isPerson = false;
-			$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
+				if (!empty($customer_data['companyName'])) {
+					$customer->companyName = $customer_data['companyName'];
+				} else {
+					$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
+				}				
 			} else {
 				$customer->isPerson = true;
-				$customer->firstName = $customer_data['firstName'];
-				$customer->lastName = $customer_data['lastName'];
+				$customer->firstName = !empty($customer_data['firstName'])? $customer_data['firstName'] : TMWNI_Settings::$customerDummyFisrtName;
+				$customer->lastName = !empty($customer_data['lastName'])? $customer_data['lastName'] : TMWNI_Settings::$customerDummyLastName;
 			}
 
 
@@ -141,12 +150,10 @@ class CustomerClient extends CommonIntegrationFunctions {
 			$request = new AddRequest();
 			$request->record = $customer;
 
-			// pr($customer);
 			try {
 				$addResponse = $this->netsuiteService->add($request);
-				// pr($addResponse); die;
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
-					do_action('tm_netsuite_after_customer_add', $addResponse, $customer_data['customer_id'], $order_id);
+					do_action('tm_netsuite_after_customer_add', $addResponse, $customer_data, $add_list, $order_id);
 				}
 				return $this->handleAPIAddResponse($addResponse, 'customer');
 			} catch (SoapFault $e) {
@@ -186,11 +193,15 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 			if (isset($TMWNI_OPTIONS['enableSendCustomersAsCo']) && 'on' == $TMWNI_OPTIONS['enableSendCustomersAsCo'] ) {
 				$customer->isPerson = false;
-			$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
+				if (!empty($customer_data['companyName'])) {
+					$customer->companyName = $customer_data['companyName'];
+				} else {
+					$customer->companyName = $customer_data['firstName'] . ' ' . $customer_data['lastName']; //set customer as company 
+				}
 			} else {
 				$customer->isPerson = true;
-				$customer->firstName = $customer_data['firstName'];
-				$customer->lastName = $customer_data['lastName'];
+				$customer->firstName = !empty($customer_data['firstName'])? $customer_data['firstName'] : TMWNI_Settings::$customerDummyFisrtName;
+				$customer->lastName = !empty($customer_data['lastName'])? $customer_data['lastName'] : TMWNI_Settings::$customerDummyLastName;
 			}
 
 
@@ -206,15 +217,13 @@ class CustomerClient extends CommonIntegrationFunctions {
 
 		$request = new UpdateRequest();
 		$request->record = $customer;
-		//pr($customer);
 
 
 		
 			try {
 				$updateResponse = $this->netsuiteService->update($request);
-				//pr($updateResponse); die('abcd');
 				if (1 == $updateResponse->writeResponse->status->isSuccess) {
-					do_action('tm_netsuite_after_customer_update', $updateResponse, $order_id);
+					do_action('tm_netsuite_after_customer_update', $customer_data, $add_list, $order_id);
 				}		
 				return $this->handleAPIUpdateResponse($updateResponse, 'customer');
 			} catch (SoapFault $e) {

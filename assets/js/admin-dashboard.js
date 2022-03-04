@@ -1,6 +1,9 @@
 jQuery(document).ready(function ($) {
 
 
+
+
+
 		
  var dataRecords = $('#dashboardList').DataTable({
 		"lengthChange": false,
@@ -22,6 +25,38 @@ jQuery(document).ready(function ($) {
 		],
 		"pageLength": 10
 	});	
+
+
+ //Clear dashboard logs
+    $("#cleardashboardlogs").click(function(e){
+        var val = $("#cleardashboardlogs").val();
+
+
+
+        // if(window.confirm("This can't be undone?")){
+            $('#loader-wrapper').show();
+            $.ajax({
+                type: "post",
+                dataType: "html",
+                url: tmwni_admin_dashboard.ajax_url,
+                data: {action: 'tm_clear_dashboard_logs', form_data : val,nonce : tmwni_admin_dashboard.nonce,},
+                success: function (response) {
+                    $("head").append('<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/font-awesome/4.5.0/css/font-awesome.min.css">');
+                    $('#loader-wrapper').hide();
+                    if(response == 'failure'){
+                      $.notify('oops! Something went wrong. Please try again', {type: "info", icon:"close",align:"right", color: "#fff", background: "#D44950"});
+                        dataRecords.ajax.reload();  
+                    }else{
+                        $.notify(" All logs have been successfully cleared", {type: "info", icon:"check",align:"right", color: "#fff", background: "#20D67B"});
+                        dataRecords.ajax.reload();                       
+                    }
+                }
+            });
+        // }
+    });
+
+
+
 
 
 
@@ -70,6 +105,9 @@ jQuery(document).ready(function ($) {
 
 		});
 	});	
+
+
+
 
 
 

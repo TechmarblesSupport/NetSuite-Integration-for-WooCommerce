@@ -62,9 +62,11 @@ class CommonIntegrationFunctions {
 				}
 
 				$this->handleLog(1, $this->object_id, $object, $error_msg);
+				
 				return 0;
 			} else {
 				$this->handleLog(1, $this->object_id, $object);
+				
 				return $response->searchResult->recordList->record[0]->internalId;
 			}
 		}
@@ -88,7 +90,8 @@ class CommonIntegrationFunctions {
 	 * API Error logging function
 	 */
 	public function logNetsuiteApiError( $error) {
-		$error_log_file = wc_get_log_file_path( 'netsuite_errors.log' );
+		$error_log_file = wc_get_log_file_path('netsuite_errors.log');
+
 		if (!file_exists($error_log_file)) {
 			fopen($error_log_file, 'w');
 			chmod($error_log_file, 0777); 
@@ -153,6 +156,18 @@ class CommonIntegrationFunctions {
 		$order_sync_log = $wpdb->get_results($wpdb->prepare( "SELECT * FROM $wpdb->netsuite_order_logs WHERE woo_object_id = %d", $order_id));
 
 		return $order_sync_log; 
+	}
+
+	public function getNetSuiteSaveSettings() {
+		global $wpdb; 
+
+		// $all_setting = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$wpdb->options}` WHERE (`option_name` LIKE '%tmwni_%'   OR `option_name` LIKE '%netstuite_%' OR `option_name` LIKE '%_cm_options%') "));
+
+
+		$all_setting = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$wpdb->options}` WHERE (`option_name` LIKE %s   OR `option_name` LIKE %s OR `option_name` LIKE %s) ", '%tmwni_%' , '%netstuite_%' , '%_cm_options%' ));
+
+		return $all_setting; 
+
 	}
 }
 

@@ -911,8 +911,9 @@ class OrderClient extends CommonIntegrationFunctions {
 									$order_data['ns_salesorder_fields'][trim($mapping['ns_field_key'])] = array('type'=>trim($mapping['ns_field_type_value']),'value'=>$mapping['ns_field_value']);
 								}
 							} elseif ('is' == $mapping['wc_where_op']) {
-								if (strtolower($mapping['wc_field_value'])  == strtolower($saved_value)) {
+								if (html_entity_decode(strtolower($mapping['wc_field_value']))  == html_entity_decode(strtolower($saved_value))) {
 									$order_data['ns_salesorder_fields'][trim($mapping['ns_field_key'])] = array('type'=>trim($mapping['ns_field_type_value']),'value'=>$mapping['ns_field_value']);
+
 								}
 							} elseif ('isnot' == $mapping['wc_where_op']) {
 								if ( strtolower($saved_value) != strtolower($mapping['wc_field_value'])) {

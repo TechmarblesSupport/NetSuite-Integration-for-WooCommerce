@@ -1,6 +1,6 @@
 <?php
-
 $TMWNI_OPTIONS = TMWNI_Settings::getTabSettings();
+
 ini_set('default_socket_timeout', 600);
 define('NS_ENDPOINT', '2020_2');
 define('NS_HOST', isset($TMWNI_OPTIONS['ns_host']) ? rtrim($TMWNI_OPTIONS['ns_host'], '/\\') : '');

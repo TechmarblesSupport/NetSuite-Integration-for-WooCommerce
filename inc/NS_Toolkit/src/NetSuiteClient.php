@@ -65,11 +65,15 @@ class NetSuiteClient {
 	 * Param array $options
 	 * Param SoapClient $client
 	 */
-	public function __construct( $config = null, $options = [], $client = null) {
+	public function __construct( $config = null, $options = [], $client = null, $ajaxValidateCreds = array()) {
 		if ($config) {
 			$this->config = $config;
 		} else {
 			$this->config = self::getEnvConfig();
+		}
+		if (!empty($ajaxValidateCreds)) {
+			$this->config = $ajaxValidateCreds;
+
 		}
 		$this->validateConfig($this->config);
 		$this->clientOptions = $options;

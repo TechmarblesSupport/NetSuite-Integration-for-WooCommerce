@@ -36,8 +36,14 @@ class NetSuiteService  extends NetSuiteClient {
 		 * @param string $wsdl WSDL location for this service
 		 * @param array $options Options for the SoapClient
 		 */
-	public function __construct( $wsdl = null, $options = array()) {
-		parent::__construct($wsdl, $options);
+	public function __construct( $wsdl = null, $options = array(), $ajaxValidateCreds = array()) {
+		if (!empty($ajaxValidateCreds)) {
+			parent::__construct($wsdl, $options, null, $ajaxValidateCreds);
+
+		} else {
+			parent::__construct($wsdl, $options);
+		}
+		
 	}
 	/**
 	 * Service Call: changePassword

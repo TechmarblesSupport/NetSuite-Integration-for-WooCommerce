@@ -5,7 +5,7 @@ jQuery(document).ready(function ($) {
         $('.dashboard_tab').addClass('nav-tab-active');
     }else{
      $('.'+tab+'_tab').addClass('nav-tab-active');
-     if(tab == 'general_settings' || tab == 'inventory_settings' || tab == 'customer_settings' || tab == 'logs' || tab == 'order_settings'){
+     if(tab == 'general_settings' || tab == 'inventory_settings' || tab == 'customer_settings' || tab == 'logs' || tab == 'order_settings' || tab == 'import_export_settings'){
         $('.setting_tab').addClass('nav-tab-active');
     } 
 }

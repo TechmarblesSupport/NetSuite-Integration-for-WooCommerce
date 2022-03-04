@@ -1,5 +1,9 @@
 <?php
+
+
 require_once TMWNI_DIR . 'inc/NS_Toolkit/src/NetSuiteService.php';
+require_once TMWNI_DIR . 'inc/background-process/class-add-netsuite-order.php';
+
 
 foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
 	require_once $filename;
@@ -59,26 +63,34 @@ class TMWNI_Loader {
 		if (class_exists('SOAPClient') ) {
 			if (TMWNI_Settings::areCredentialsDefined()) {
 
+				//add_action('init',array($this,'test_order'));
+
 
 
 				$this->netsuiteService = new NetSuiteService(null, array('exceptions' => true));
+				$this->add_netsuite_order = new Add_Netsuite_Order();
+
 				require_once TMWNI_DIR . 'inc/inventory.php';
 
 				
 
 				if (isset($TMWNI_OPTIONS['enableCustomerSync']) && 'on' == $TMWNI_OPTIONS['enableCustomerSync']) {
 					//USER PROFILE HOOKS
-					//wordpress user register
-					add_action('user_register', array($this, 'addUpdateNetsuiteCustomer'), 999);
+
 
 					//wooocommerce customer created
-					add_action('woocommerce_created_customer', array($this, 'addUpdateNetsuiteCustomer'));
+					add_action('woocommerce_created_customer', array($this, 'addUpdateNetsuiteCustomer'), 999);
+					//wordpress user register
+					add_action('user_register', array($this, 'addUpdateNetsuiteUser'), 999);
+
+					
 
 					//hook for detecting customer address save
-					add_action('woocommerce_customer_save_address', array($this, 'addUpdateNetsuiteCustomer'));
+					//add_action('woocommerce_update_customer', array($this, 'profileUpdateNetSuiteCustomer'),999);
 
 					//hook for detetcting update in user profile
-					add_action('profile_update', array($this, 'profileUpdateNetSuiteCustomer'));
+
+					add_action('profile_update', array($this, 'profileUpdateNetSuiteUser'), 999);
 				}
 
 				if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
@@ -97,14 +109,11 @@ class TMWNI_Loader {
 							add_action( 'woocommerce_checkout_order_processed', array($this, 'syncNetSuiteOrder') ); 
 						} else {
 							add_action('woocommerce_order_status_' . $TMWNI_OPTIONS['ns_order_autosync_status'], array($this, 'syncNetSuiteOrder'));
-						}
-
-						
+						}			
 					} else {
-						
-						add_action('woocommerce_order_status_processing', array($this, 'syncNetSuiteOrder'));
-						
+							add_action('woocommerce_order_status_processing', array($this, 'syncNetSuiteOrder'));
 					}
+
 
 					if (isset($TMWNI_OPTIONS['ns_autosync_on_order_status_changes']) && !empty($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'])) {
 						foreach ($TMWNI_OPTIONS['ns_autosync_on_order_status_changes'] as $key => $value ) {
@@ -112,7 +121,7 @@ class TMWNI_Loader {
 						}
 					}
 					// Process all queued order sync to netsuite
-					//add_action( 'tm_ns_process_order_queue', array( $this, 'addNetsuiteOrder' ), 10, 1 );
+					add_action( 'tm_ns_process_order_queue', array( $this, 'addNetsuiteOrder' ), 10, 1 );
 				}
 
 
@@ -149,6 +158,14 @@ class TMWNI_Loader {
 
 	}
 
+	// public function test_order() {
+	// 	if (isset($_GET['test']) && 1 == $_GET['test']) {
+	// 		$this->fetchOrderTrackingInfo();
+	// 	}
+		
+
+	// }
+
 
 
 
@@ -163,12 +180,67 @@ class TMWNI_Loader {
 
 	}
 
+	public function addUpdateNetsuiteUser( $customer_id) {
+		$user_meta = get_userdata($customer_id);
+		$user_roles = $user_meta->roles;
+
+		if ('customer' == $user_roles[0]) {
+			return;
+		} else {
+			$this->addUpdateNetsuiteCustomer($customer_id);
+		}
+
+	}
+
+
+	/**
+	 * User Update
+	 *
+	*/ 
+	public function profileUpdateNetSuiteCustomer( $customer_id) {
+		$customer_internal_id = get_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, true);
+		if (!empty($customer_internal_id)) {
+			if (!empty($_GET['wc-ajax']) && 'checkout' ==$_GET['wc-ajax']) {
+				$var = 'checkout';
+			} else {
+				$this->addUpdateNetsuiteCustomer($customer_id);
+			}
+
+		}
+	}
+
+
+
+	public function profileUpdateNetSuiteUser( $customer_id) {
+		$user_meta = get_userdata($customer_id);
+		$user_roles = $user_meta->roles;
+
+		
+		if (!empty($_GET['wc-ajax']) && 'checkout' ==$_GET['wc-ajax']) {
+			$var = 'checkout';
+		} else {
+			$this->addUpdateNetsuiteCustomer($customer_id);
+		}
+
+	}
+
 
 
 
 
 	public function syncNetSuiteOrder( $order_id) {
-		$this->addNetsuiteOrder($order_id);
+		$status = true;
+		$status = apply_filters('tm_netsuite_order_autosync_status', $status, $order_id);
+		if (true == $status) {
+			//$this->addNetsuiteOrder($order_id);
+			 $this->push_orders_to_queue($order_id);
+		}
+
+
+
+
+
+		
 	}
 	
 
@@ -177,8 +249,6 @@ class TMWNI_Loader {
 	 *
 	*/ 
 	public function addNetsuiteOrder( $order_id) {
-
-
 		global $TMWNI_OPTIONS;
 
 		require_once TMWNI_DIR . 'inc/order.php';
@@ -236,12 +306,13 @@ class TMWNI_Loader {
 			
 		}
 		
-		if (isset($order_netsuite_internal_id) && 0 != $order_netsuite_internal_id) {
-			update_post_meta( $order_id, 'tm_netsuite_order_processed', true );
-		} else {
-			delete_post_meta($order_id, '_tm_netsuite_process_waiting');
-			delete_post_meta($order_id, 'tm_netsuite_order_processed');
-		}
+		// if (isset($order_netsuite_internal_id) && 0 != $order_netsuite_internal_id) {
+		// 	update_post_meta( $order_id, 'tm_netsuite_order_processed', true );
+		// } else {
+		// 	delete_post_meta($order_id, '_tm_netsuite_process_waiting');
+		// 	delete_post_meta($order_id, 'tm_netsuite_order_processed');
+		// }
+
 
 		return $order_netsuite_internal_id;
 	}
@@ -291,17 +362,7 @@ class TMWNI_Loader {
 	}
 
 
-	/**
-	 * User Update
-	 *
-	*/ 
-	public function profileUpdateNetSuiteCustomer( $customer_id) {
-		if (!empty($_GET['wc-ajax']) && 'checkout' ==$_GET['wc-ajax']) {
-			$var = 'checkout';
-		} else {
-			$this->addUpdateNetsuiteCustomer($customer_id);
-		}
-	}
+	
 
 	/**
 	 * Order status change
@@ -310,9 +371,14 @@ class TMWNI_Loader {
 	public function addNetsuiteOrderOnStatusChange( $order_id, $instance) {
 
 		global $TMWNI_OPTIONS;
+		$status = true;
 		if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
-			$this->addNetsuiteOrder($order_id);
-			// $this->push_orders_to_queue($order_id);
+			$status = apply_filters('tm_add_netsuite_order_on_status_change', $status, $order_id);			
+			
+			if (true == $status) {
+			 //$this->addNetsuiteOrder($order_id);
+				$this->push_orders_to_queue($order_id);
+			}
 		}
 		return;
 	}
@@ -323,15 +389,29 @@ class TMWNI_Loader {
 	*/ 
 	public function sync_to_netsuite( $order) {
 		global $TMWNI_OPTIONS;
+		$status = true;
+
+		// pr($status);
 
 		if (isset($TMWNI_OPTIONS['enableOrderSync']) && 'on' == $TMWNI_OPTIONS['enableOrderSync']) {
 			if (!is_object($order)) {
-				$this->addNetsuiteOrder($order);
-				// $this->push_orders_to_queue($order);
+				
+				$status = apply_filters('tm_add_netsuite_order', $status, $order);
+				if (true == $status) {
+					//$this->addNetsuiteOrder($order);
+					$this->push_orders_to_queue($order->get_id());
+
+				}
+				
 
 			} else {
-				$this->addNetsuiteOrder($order->get_id());
-				// $this->push_orders_to_queue($order->get_id());
+				$status  = apply_filters('tm_add_netsuite_order', $status, $order->get_id());
+				if (true == $status) {
+					//$this->addNetsuiteOrder($order->get_id());
+					$this->push_orders_to_queue($order->get_id());
+
+				}
+				
 
 			}
 		}
@@ -342,153 +422,173 @@ class TMWNI_Loader {
 	 * Hook function which will recieve customer id and pass it to net  update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
 	 */
 	public function addUpdateNetsuiteCustomer( $customer_id, $order_id = 0) {
-		if ($order_id) {
-			do_action('before_add_update_netsuite_customer', $customer_id, $order_id);
-		}
+		$customer_sync = true;
+		$customer_sync = apply_filters('tm_ns_customer_sync_status_check', $customer_id);
+		if (true == $customer_sync) {
+			if ($order_id) {
+				do_action('before_add_update_netsuite_customer', $customer_id, $order_id);
+			}
 
 
-		
-		global $TMWNI_OPTIONS;
+
+			global $TMWNI_OPTIONS;
 
 		//get and set customer data 
-		$woo_customer_data = get_userdata($customer_id);
-		
+			$woo_customer_data = get_userdata($customer_id);
+
 		//check if passed user is a customer
-		if (isset($woo_customer_data->roles[0]) && in_array($woo_customer_data->roles[0], $TMWNI_OPTIONS['customer_roles'])) {
-			require_once TMWNI_DIR . 'inc/customer.php';
+			if (isset($woo_customer_data->roles[0]) && in_array($woo_customer_data->roles[0], $TMWNI_OPTIONS['customer_roles'])) {
+				require_once TMWNI_DIR . 'inc/customer.php';
 
-			//instance of API client
-			$netsuiteCustomerClient = new CustomerClient();
-			$email = $woo_customer_data->data->user_email;
-			$customer_internal_id = get_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, true);
-			
-			if (empty($customer_internal_id)) {
-				//check if customer already registered on netsuite
-				$customer_internal_id = $netsuiteCustomerClient->searchCustomer($woo_customer_data->data->user_email, $customer_id);
-			}
+				//instance of API client
+				$netsuiteCustomerClient = new CustomerClient();
+				$email = $woo_customer_data->data->user_email;
+				$customer_internal_id = get_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, true);
+
+				if (empty($customer_internal_id)) {
+					//check if customer already registered on netsuite
+					$customer_internal_id = $netsuiteCustomerClient->searchCustomer($woo_customer_data->data->user_email, $customer_id);
+				}
 
 
-			if (!empty($woo_customer_data->first_name) && !empty($woo_customer_data->last_name)) {
-				$first_name = $woo_customer_data->first_name;
-				$last_name = $woo_customer_data->last_name;
-			} else {
-				$first_name = get_user_meta($customer_id, 'billing_first_name', true);
-				$last_name = get_user_meta($customer_id, 'billing_last_name', true);
-			}
 
-			$company_name = get_user_meta($customer_id, 'billing_company', true);
-			$phone = get_user_meta($customer_id, 'billing_phone', true);
 
-			$customer_data = array(
-				'customer_id' => $customer_id,
-				'firstName' => $first_name,
-				'lastName' => $last_name,
-				'email' => $email,
-				'companyName' => $company_name,
-				'phone' => $phone
-			);
-			update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
-			$address_type = array('billing', 'shipping');
-			$addresses = array();
-			foreach ($address_type as $single_address) {
-				$address['firstName'] = get_user_meta($customer_id, $single_address . '_first_name', true);
-				$address['lastName'] = get_user_meta($customer_id, $single_address . '_last_name', true);
-				$address['companyName'] = get_user_meta($customer_id, $single_address . '_company', true);
-				$address['address1'] = get_user_meta($customer_id, $single_address . '_address_1', true);
-				$address['address2'] = get_user_meta($customer_id, $single_address . '_address_2', true);
-				$address['city'] = get_user_meta($customer_id, $single_address . '_city', true);
-				$address['state'] = get_user_meta($customer_id, $single_address . '_state', true);
-				$address['postcode'] = get_user_meta($customer_id, $single_address . '_postcode', true);
-				$address['country'] = get_user_meta($customer_id, $single_address . '_country', true);
-				$addresses[$single_address] = $address;
-			}
-
-			$alb = '';
-			$als = '';
-			foreach ($addresses as $key => $address) {
-				if (isset($address['country']) && !empty($address['country'])) {
-					$ns_country = TMWNI_Settings::$netsuite_country[$address['country']];
+				if (!empty($woo_customer_data->first_name) && !empty($woo_customer_data->last_name)) {
+					$first_name = $woo_customer_data->first_name;
+					$last_name = $woo_customer_data->last_name;
 				} else {
-					$ns_country = '';
-				}
-				
-				if ('billing' == $key) {
-					$alb = new CustomerAddressbook();
-					$alb->internalId = $customer_internal_id;
-					$alb->defaultShipping = false;
-					$alb->defaultBilling = true;
-					$alb->isResidential = true;
-					$alb->label = 'Customer Address Billing';
-					$alb->addressbookAddress = new Address();
-					$alb->addressbookAddress->addr1 = $address['address1'];
-					$alb->addressbookAddress->addr2 = $address['address2'];
-					$alb->addressbookAddress->addr3 = '';
-					$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-					;
-					$alb->addressbookAddress->addrPhone = $phone;
-					$alb->addressbookAddress->addrText = $address['address1'];
-					$alb->addressbookAddress->addressee = $address['companyName'];
-					$alb->addressbookAddress->city = $address['city'];
-					$alb->addressbookAddress->country = $ns_country;
-					$alb->addressbookAddress->internalId = $customer_internal_id;
-					$alb->addressbookAddress->override = false;
-					$alb->addressbookAddress->state = $address['state'];
-					$alb->addressbookAddress->zip = $address['postcode'];
-				} elseif ('shipping' == $key) {
-					$als = new CustomerAddressbook();
-					$als->internalId = $customer_internal_id;
-					$als->defaultShipping = true;
-					$als->defaultBilling = false;
-					$als->isResidential = false;
-					$als->label = 'Customer Address Shipping';
-					$als->addressbookAddress = new Address();
-					$als->addressbookAddress->addr1 = $address['address1'];
-					$als->addressbookAddress->addr2 = $address['address2'];
-					$als->addressbookAddress->addr3 = '';
-					$als->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-					;
-					$als->addressbookAddress->addrPhone = '';
-					$als->addressbookAddress->addrText = $address['address1'];
-					$als->addressbookAddress->addressee = $address['companyName'];
-					$als->addressbookAddress->city = $address['city'];
-					$als->addressbookAddress->country = $ns_country;
-					$als->addressbookAddress->internalId = $customer_internal_id;
-					$als->addressbookAddress->override = false;
-					$als->addressbookAddress->state = $address['state'];
-					$als->addressbookAddress->zip = $address['postcode'];
+					$first_name = get_user_meta($customer_id, 'billing_first_name', true);
+					$last_name = get_user_meta($customer_id, 'billing_last_name', true);
 				}
 
-			}
+				$company_name = get_user_meta($customer_id, 'billing_company', true);
+				$phone = get_user_meta($customer_id, 'billing_phone', true);
 
-			
-			$address_data = [$alb, $als];
-			
+				$customer_data = array(
+					'customer_id' => $customer_id,
+					'firstName' => $first_name,
+					'lastName' => $last_name,
+					'email' => $email,
+					'companyName' => $company_name,
+					'phone' => $phone
+				);
+				update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
+				$address_type = array('billing', 'shipping');
+				$addresses = array();
+				foreach ($address_type as $single_address) {
+					$address['firstName'] = get_user_meta($customer_id, $single_address . '_first_name', true);
+					$address['lastName'] = get_user_meta($customer_id, $single_address . '_last_name', true);
+					$address['companyName'] = get_user_meta($customer_id, $single_address . '_company', true);
+					$address['address1'] = get_user_meta($customer_id, $single_address . '_address_1', true);
+					$address['address2'] = get_user_meta($customer_id, $single_address . '_address_2', true);
+					$address['city'] = get_user_meta($customer_id, $single_address . '_city', true);
+					$address['state'] = get_user_meta($customer_id, $single_address . '_state', true);
+					$address['postcode'] = get_user_meta($customer_id, $single_address . '_postcode', true);
+					$address['country'] = get_user_meta($customer_id, $single_address . '_country', true);
+					$addresses[$single_address] = $address;
+				}
 
-			$address_data = apply_filters('tm_netsuite_customer_address_data', $address_data, $customer_id);
-			$al = new CustomerAddressbookList();
-			$al->addressbook = $address_data;
+				$alb = '';
+				$als = '';
+				foreach ($addresses as $key => $address) {
+					if (isset($address['country']) && !empty($address['country'])) {
+						$ns_country = TMWNI_Settings::$netsuite_country[$address['country']];
+					} else {
+						$ns_country = '';
+					}
+
+					if ('billing' == $key) {
+						$alb = new CustomerAddressbook();
+						$alb->internalId = $customer_internal_id;
+						$alb->defaultShipping = false;
+						$alb->defaultBilling = true;
+						$alb->isResidential = true;
+						$alb->label = 'Customer Address Billing';
+						$alb->addressbookAddress = new Address();
+						$alb->addressbookAddress->addr1 = $address['address1'];
+						$alb->addressbookAddress->addr2 = $address['address2'];
+						$alb->addressbookAddress->addr3 = '';
+						$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
+						;
+						$alb->addressbookAddress->addrPhone = $phone;
+						$alb->addressbookAddress->addrText = $address['address1'];
+						$alb->addressbookAddress->addressee = $address['companyName'];
+						$alb->addressbookAddress->city = $address['city'];
+						$alb->addressbookAddress->country = $ns_country;
+						$alb->addressbookAddress->internalId = $customer_internal_id;
+						$alb->addressbookAddress->override = false;
+						$alb->addressbookAddress->state = $address['state'];
+						$alb->addressbookAddress->zip = $address['postcode'];
+					} elseif ('shipping' == $key) {
+						$als = new CustomerAddressbook();
+						$als->internalId = $customer_internal_id;
+						$als->defaultShipping = true;
+						$als->defaultBilling = false;
+						$als->isResidential = false;
+						$als->label = 'Customer Address Shipping';
+						$als->addressbookAddress = new Address();
+						$als->addressbookAddress->addr1 = $address['address1'];
+						$als->addressbookAddress->addr2 = $address['address2'];
+						$als->addressbookAddress->addr3 = '';
+						$als->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
+						;
+						$als->addressbookAddress->addrPhone = '';
+						$als->addressbookAddress->addrText = $address['address1'];
+						$als->addressbookAddress->addressee = $address['companyName'];
+						$als->addressbookAddress->city = $address['city'];
+						$als->addressbookAddress->country = $ns_country;
+						$als->addressbookAddress->internalId = $customer_internal_id;
+						$als->addressbookAddress->override = false;
+						$als->addressbookAddress->state = $address['state'];
+						$als->addressbookAddress->zip = $address['postcode'];
+					}
+
+				}
 
 
-			if (!empty($customer_internal_id)) {
-				$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $address['state'], $order_id);
-			} else {
+				$address_data = [$alb, $als];
+
+
+				$address_data = apply_filters('tm_netsuite_customer_address_data', $address_data, $customer_id);
+				$al = new CustomerAddressbookList();
+				$al->addressbook = $address_data;
+
+
+
+
+				if (!empty($customer_internal_id)) {
+					$netsuiteCustomerClient->updateCustomer($customer_data, $customer_internal_id, $al, $address['state'], $order_id);
+				} else {
 						//add customer to netsuite
-				$customer_internal_id = $netsuiteCustomerClient->addCustomer($customer_data, $al, $address['state'], $order_id);
-				if ($customer_internal_id) {
-					update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
+					$customer_internal_id = $netsuiteCustomerClient->addCustomer($customer_data, $al, $address['state'], $order_id);
+					if ($customer_internal_id) {
+						update_user_meta($customer_id, TMWNI_Settings::$ns_customer_id, $customer_internal_id);
+					}
 				}
+
+
+				//die('zzzzz');
+				return $customer_internal_id;
+
+			} else {
+				require_once TMWNI_DIR . 'inc/common.php';
+				$netsuiteCommonIntegrationFunctions = new CommonIntegrationFunctions();
+				$error_msg = 'Please select ' . $woo_customer_data->roles[0] . ' role in customer tab';
+				$netsuiteCommonIntegrationFunctions->handleLog(1, $customer_id, 'Customer', $error_msg);
+
+				return 0;
+
 			}
 
-			return $customer_internal_id;
 
-		} else {
-			require_once TMWNI_DIR . 'inc/common.php';
-			$netsuiteCommonIntegrationFunctions = new CommonIntegrationFunctions();
-			$error_msg = 'Please select ' . $woo_customer_data->roles[0] . ' role in customer tab';
-			$netsuiteCommonIntegrationFunctions->handleLog(1, $customer_id, 'Customer', $error_msg);
+
+
+
+
+
 		}
+		
 
-		return 0;
 	}
 	/**
 	 * Sync Guest Customer
@@ -774,6 +874,15 @@ class TMWNI_Loader {
 			$this->addNetsuiteOrder($post_id);
 		}
 		return;
+
+	}
+
+
+	public function push_orders_to_queue( $order_id) {
+		$this->add_netsuite_order->push_to_queue($order_id);
+		$this->add_netsuite_order->save()->dispatch();
+
+		return false;
 	}
 
 	

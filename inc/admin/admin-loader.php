@@ -1,5 +1,6 @@
 <?php
 
+
 require_once TMWNI_DIR . 'inc/NS_Toolkit/src/NetSuiteService.php';
 foreach (glob(TMWNI_DIR . 'inc/NS_Toolkit/src/Classes/*.php') as $filename) {
 	require_once $filename;
@@ -22,7 +23,6 @@ use NetSuite\Classes\PriceLevelSearchBasic;
 
 
 class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
-
 	private $netsuiteParameters;
 
 	private $cust_woo_order_fields = [
@@ -131,9 +131,17 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		add_action('admin_post_save_tm_ns_settings', array($this, 'tmwniHanldeActions'));
 
 
+		add_action('admin_post_import_export_tm_ns', array($this, 'tmwniHanldeExportActions'));
+
+
+		add_action('wp_ajax_import_netsuite_settings', array($this, 'ImportNetsuiteSettings'));
+
+
 		add_action('add_meta_boxes', array($this, 'add_meta_box'));
 
 		add_action('wp_ajax_tm_clear_logs', array($this, 'clearAllApiLogs'));
+
+		add_action('wp_ajax_tm_clear_dashboard_logs', array($this, 'clearAllDashboardLogs'));
 
 
 
@@ -400,12 +408,30 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 	public function validateCredentials() {
 		$return = array();
 		$return['status'] = 0;
-		if (TMWNI_Settings::areCredentialsDefined()) {
-			$ns_service = new NetSuiteService();
-			$GetServerTimeRequest = new GetServerTimeRequest();
-			
-			
 
+
+		$return = $this->checkNSCreds();
+		
+
+		if (sanitize_text_field(isset($_SERVER['HTTP_X_REQUESTED_WITH'])) && '' !== sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']) && 'xmlhttprequest' ==    strtolower(sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']))) {
+			echo json_encode($return);
+			die;
+
+		} else {
+			return $return;
+		}
+
+
+		
+	}
+
+
+	public function checkNSCreds( $settings = array()) {
+		if (TMWNI_Settings::areCredentialsDefined() || !empty($settings)) {
+			$ns_service = new NetSuiteService(null, array(), $settings);
+
+			$GetServerTimeRequest = new GetServerTimeRequest();
+			//pr($GetServerTimeRequest);
 			try {
 				$rtn_data =  $ns_service->getServerTime($GetServerTimeRequest);
 				if (isset($rtn_data->getServerTimeResult->status->isSuccess) && 1 == $rtn_data->getServerTimeResult->status->isSuccess) {
@@ -438,17 +464,8 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		}
 
 
+		return $return; 
 
-		if (sanitize_text_field(isset($_SERVER['HTTP_X_REQUESTED_WITH'])) && '' !== sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']) && 'xmlhttprequest' ==    strtolower(sanitize_text_field($_SERVER['HTTP_X_REQUESTED_WITH']))) {
-			echo json_encode($return);
-			die;
-
-		} else {
-			return $return;
-		}
-
-
-		
 	}
 
 
@@ -1028,6 +1045,158 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 		
 	}
 
+
+
+	
+	public function tmwniHanldeExportActions() {
+
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('Nonce Error'); 
+		}
+		if (isset($_POST['Export'])   &&  'Export Settings' == $_POST['Export']) {			
+				self::downloadSettings();
+		}
+	} 
+
+
+	public function downloadSettings() {
+
+
+		$all_setting = $this->getNetSuiteSaveSettings();
+		if (empty($all_setting)) {
+			die('All settings fields are blank');
+		}
+
+		$fileName = 'netsuite_setting';
+
+		$data = json_encode($all_setting);
+		file_put_contents(TMWNI_DIR . '/inc/' . $fileName, $data);
+		$file = TMWNI_DIR . '/inc/' . $fileName;
+
+		if (!file_exists($file)) {
+			die("I'm sorry, the file doesn't seem to exist.");
+		}
+
+		$type = filetype($file);
+		$today = gmdate('F j, Y, g:i a');
+		$time = time();
+		// Send file headers
+		header("Content-type: $type");
+		;
+
+		header("Content-Disposition: attachment;filename={$fileName}.json");
+		header('Content-Transfer-Encoding: binary'); 
+		header('Pragma: no-cache'); 
+		header('Expires: 0');
+		set_time_limit(0);
+		ob_clean();
+		flush();
+
+
+		readfile($file);
+
+	}
+
+
+	public function ImportNetsuiteSettings() {
+		if (isset($_FILES['importfile']['tmp_name'])) {
+			$data = $_FILES;
+			self::importJSONFile($data);
+		} else {
+			die(json_encode([
+				'status' => 'false',
+				'msg' => 'Something went wrong'
+			]));
+		}
+
+	} 
+
+	public function importJSONFile( $data) {
+		$fileData = json_decode(file_get_contents($data['importfile']['tmp_name']));
+		foreach ($fileData as $key => $settings) {
+			if ('tmwni_general_settings_options' == $settings->option_name) {
+
+				$settings_array = unserialize($settings->option_value);
+
+				if (!empty($settings_array['ns_host']) && !empty($settings_array['ns_account']) && !empty($settings_array['ns_consumer_key']) && !empty($settings_array['ns_token_id']) && !empty($settings_array['ns_token_secret']) ) {
+
+					$validate_credentials = $this->validateCredsJSONFile($settings_array);
+				} else {
+					die(json_encode([
+						'status' => 'false',
+						'msg' => 'All required credentials are not defined'
+					]));
+
+				}
+
+
+
+
+
+				if (isset($validate_credentials) && !empty($validate_credentials) && 0 == $validate_credentials['status']) {
+					die(json_encode([
+						'status' => 'false',
+						'msg' => 'Something wrong with API Credentials'
+					])); 
+
+				} else {
+					foreach ($fileData as $key => $settings) {
+						$option_key = $settings->option_name;
+						$settings_array = unserialize($settings->option_value);
+						update_option($option_key, $settings_array, 'no');			
+					}
+					die(json_encode([
+						'status' => 'true',
+						'msg' => 'Settings successfully imported!'
+					]));
+
+
+
+				}
+
+				
+				# code...
+			}
+
+		}
+
+
+
+		
+		
+
+
+
+	}
+
+
+	public function validateCredsJSONFile( $settings) {
+		$settings_array = array();
+
+		$settings_array['endpoint'] = NS_ENDPOINT;
+		$settings_array['host'] = $settings['ns_host'];
+		$settings_array['account'] = $settings['ns_account'];
+		$settings_array['role'] = 3;
+		$settings_array['consumerKey'] = $settings['ns_consumer_key'];
+		$settings_array['consumerSecret'] = $settings['ns_consumer_secret'];
+		$settings_array['token'] = $settings['ns_token_id'];
+		$settings_array['tokenSecret'] = $settings['ns_token_secret'];
+		$settings_array['signatureAlgorithm'] =  ( 'HMAC-SHA1' == $settings['hma_algorithm_method'] ) ? 'sha1' : 'sha256';
+
+
+
+		$validate_credentials = $this->checkNSCreds($settings_array);
+
+
+		return $validate_credentials; 
+
+	} 
+
+
+
+
+	
+
 	
 
 	public function tmwniHanldeActions() {
@@ -1064,6 +1233,13 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 					wp_clear_scheduled_hook('wp_tm_ns_manual_process_inventories_cron');
 					wp_clear_scheduled_hook('tm_ns_process_inventories');
 				}
+
+
+				if (!isset($tm_netsuite_settings['updateStockStatus'])) {
+					$tm_netsuite_settings['updateStockStatus'] = 'no';
+				}
+
+
 			}
 
 
@@ -1292,9 +1468,9 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 	
 	public function TMWNISettingsTabs() {
 
-		
-
-		//$validate_credentials  = TMWNI_Settings::areCredentialsDefined() ? $this->validateCredentials() : '';
+		if (TMWNI_Settings::areCredentialsDefined()) {
+			$validate_credentials = $this->validateCredentials();
+		}	
 
 
 
@@ -1422,7 +1598,7 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 	// if($current_tab_id=='order_settings'){
 		wp_enqueue_style( 'tmwni_admin_bootstrap_settings_css', TMWNI_URL . '/assets/css/bootstrap.min.css', false, '1.1', 'all' );
 		// }
-		wp_enqueue_style( 'tmwni_admin_settings_css', TMWNI_URL . 'assets/css/admin-settings.css', false, '1.1', 'all' );
+		wp_enqueue_style( 'tmwni_admin_settings_css', TMWNI_URL . 'assets/css/admin-settings.css', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all' );
 		
 		//Select2 CSS
 		wp_enqueue_style( 'tmwni_admin_settings_select2_css', TMWNI_URL . 'assets/css/select2.min.css', false, '1.1', 'all' );
@@ -1443,7 +1619,8 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 			$current_tab_id = sanitize_text_field($_GET['tab']);
 		}
 
-		wp_enqueue_script('tmwni-bootstrap-js', TMWNI_URL . '/assets/js/bootstrap3.3.7.min.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
+
+		wp_enqueue_script('tmwni-bootstrap-js', TMWNI_URL . '/assets/js/bootstrap3.3.7.min.js', array('jquery'), '1.0', 'all');
 
 		//Notify/Prettify JS
 		wp_enqueue_script('tmwni-admin-settings-notifyjs', TMWNI_URL . '/assets/js/notify.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
@@ -1463,7 +1640,7 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 				array( 'ajax_url' => admin_url( 'admin-ajax.php' ), 'nonce' => wp_create_nonce('security_nonce')));
 
 		}
-		if ('logs' == $current_tab_id) {
+		if ('logs' == $current_tab_id ) {
 
 			wp_enqueue_script('tmwni-jquery-dataTables-js', TMWNI_URL . '/assets/js/jquery.dataTables.min.js', false, '1.1', 'all');
 			wp_enqueue_script('tmwni-admin-log', TMWNI_URL . '/assets/js/admin-logs.js', false, WC_TM_NETSUITE_INTEGRATION_INIT_VERSION, 'all');
@@ -1498,6 +1675,28 @@ class TMWNI_Admin_Loader extends CommonIntegrationFunctions {
 			}
 		}
 	}
+
+	public function clearAllDashboardLogs() {
+		if (isset($_POST['nonce']) && !empty($_POST['nonce']) && !wp_verify_nonce(sanitize_text_field($_POST['nonce']), 'security_nonce') ) {
+			die('clear api logs'); 
+		}
+
+		if (!empty($_POST['form_data']) && 'clearDashboardLogs' == $_POST['form_data']) {
+			global $wpdb;
+			$result = $wpdb->get_results($wpdb->prepare('TRUNCATE TABLE ' . $wpdb->prefix . 'tm_woo_netsuite_auto_sync_order_status'));
+			if (empty($result)) {
+				exit('success');
+			} else {
+				exit('failure');
+			}
+		}
+	}
+
+
+
+
+
+
 }
 
 function TMWNI_Admin_loader() {

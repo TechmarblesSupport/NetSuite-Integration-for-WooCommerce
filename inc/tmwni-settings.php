@@ -22,6 +22,9 @@ class TMWNI_Settings {
 	//customer
 	public static $order_shipping_line_item_id = '2174';
 	public static $pricing_group = 'Base Price';
+	public static $customerDummyFisrtName = 'Woo';
+	public static $customerDummyLastName = 'Customer';
+
 	public static $netsuite_country = array(
 		'AF' => '_afghanistan',
 		'AX' => '_alandIslands',
@@ -285,6 +288,7 @@ class TMWNI_Settings {
 	'logs' => 'NetSuite API Logs',
 	'help' => 'Help & Support',
 	'dashboard' => 'Dashboard',
+	'import_export_settings' => 'Import/Export Settings'
 
 ];
 	public static $inventory_sync_frequency = [

@@ -338,6 +338,13 @@ td.forminp.forminp-checkbox input[type="checkbox"] {
     padding: 10px 20px;
 }
 
+input#export_settings,#import_settings{
+    background: #2271b1 !important;
+    /*border: 0px;*/
+    padding: 10px 20px;
+
+}
+
 input#test_api_creds {
     background: #2271b1;
 }

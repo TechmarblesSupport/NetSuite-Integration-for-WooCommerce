@@ -68,7 +68,7 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 			$netSuiteSOInternalID = get_post_meta($order_id, 'ns_order_internal_id', true);
 			$order_status = $order->get_status();
 			$tracking_status = get_post_meta($order_id, 'ywot_tracking_code', true);
-			if (empty($tracking_status)  ||  'processing' == $order_status) {
+			if (empty($tracking_status)  &&  'processing' == $order_status) {
 				$searchValue = new RecordRef();
 				$searchValue->internalId = $netSuiteSOInternalID;	
 				$internalIds_array[] = 	$searchValue;	

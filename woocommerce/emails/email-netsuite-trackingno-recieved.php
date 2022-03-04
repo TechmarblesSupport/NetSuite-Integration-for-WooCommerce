@@ -29,34 +29,41 @@ do_action( 'woocommerce_email_header', $email_heading, $email ); ?>
 <?php /* translators: %s: Customer first name */ ?>
 
 <?php 
+global $TMWNI_OPTIONS;
 
 //$orderId = trim(str_replace('#', '', $order->get_order_number())); 
 
 $orderId = $order->ID;
 
 $ups_trackingno = get_post_meta($orderId, 'ywot_tracking_code', true);
+if (isset($TMWNI_OPTIONS['ns_order_shipping_courier']) && !empty($TMWNI_OPTIONS['ns_order_shipping_courier'])) {
+
+	$shipping_carrier =	get_post_meta($order_id, $TMWNI_OPTIONS['ns_order_shipping_courier'], true);
+} else {
+	$shipping_carrier = 	get_post_meta($order_id, 'ywot_carrier_name', true);
+}
 
 ?>
 <p>
-<?php 
-/* translators: %s Order date */
-printf( esc_html__( 'Hi %s,', 'woocommerce' ), esc_html( $order->get_billing_first_name() ) ); 
+	<?php 
+	/* translators: %s Order date */
+	printf( esc_html__( 'Hi %s,', 'woocommerce' ), esc_html( $order->get_billing_first_name() ) ); 
 
-?>
-</p>
-	<p>
-	<?php
-		/* translators: %s Order date */
-		// printf( esc_html__( 'Your order has been picked up by UPS on %s:', 'woocommerce' ), esc_html( wc_format_datetime( $order->get_date_created() ) ) );
-		printf( esc_html__( 'Your order has been picked up', 'woocommerce' ));
 	?>
-	</p>
-	<p>
+</p>
+<p>
 	<?php
 	/* translators: %s Order date */
-		printf( esc_html__( 'This is the UPS tracking number for your order : %s', 'woocommerce' ), esc_html( $ups_trackingno ) );
+		// printf( esc_html__( 'Your order has been picked up by UPS on %s:', 'woocommerce' ), esc_html( wc_format_datetime( $order->get_date_created() ) ) );
+	printf( esc_html__( 'Your order has been picked up', 'woocommerce' ));
 	?>
-	</p>
+</p>
+<p>
+	<?php
+	/* translators: %s Order date */
+	printf( esc_html__( 'This is the %1$s tracking number for your order : %2$s', 'woocommerce' ), esc_html($shipping_carrier), esc_html( $ups_trackingno ) );
+	?>
+</p>
 <?php
 
 /**
@@ -86,7 +93,7 @@ do_action( 'woocommerce_email_customer_details', $order, $sent_to_admin, $plain_
 
 ?>
 <p>
-<?php esc_html_e( 'Thanks for reading.', 'woocommerce' ); ?>
+	<?php esc_html_e( 'Thanks for reading.', 'woocommerce' ); ?>
 </p>
 <?php
 

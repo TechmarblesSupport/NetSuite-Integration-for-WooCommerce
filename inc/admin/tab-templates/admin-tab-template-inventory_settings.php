@@ -1,7 +1,11 @@
 <form  action="admin-post.php" method="post" id="settings_tm_ns"> 
 	<input type="hidden" name="action" value="save_tm_ns_settings"> 
 	<input type="hidden" name="current_tab_id" value="<?php echo esc_attr($current_tab_id); ?>">
-	<?php wp_nonce_field('nonce'); ?>
+	<?php 
+	wp_nonce_field('nonce');
+	// pr($options); die('done');
+
+	?>
 	<h2>
 		Product/Inventory Sync Settings
 	</h2>
@@ -141,6 +145,23 @@
 											</td>
 										</tr>
 										<tr valign="top">
+										<th scope="row" class="titledesc">
+											Update stock status
+											<div class="tooltip dashicons-before dashicons-editor-help">
+												<span class="tooltiptext">If checked  update stock status</span>
+											</div>
+										</th>
+										<td class="forminp forminp-checkbox">
+											<input value="yes" name="updateStockStatus" 
+											<?php 
+											if (!isset($options['updateStockStatus']) || 'yes' == $options['updateStockStatus']) {
+												echo 'checked ';} 
+											?>
+												id="updateStockStatus" type="checkbox" >
+												<label for="updateStockStatus"></label>                    
+											</td>
+										</tr>
+										<tr valign="top">
 											<th scope="row" class="titledesc">
 												<label for="inventorySyncField">Inventory Quantity Field</label>
 
@@ -150,6 +171,7 @@
 											</th>
 											<td class="forminp forminp-select">
 												<select name="inventorySyncField" id="inventorySyncField" style="" class="">
+													<option value="">Choose the quantity field</option>
 													<option 
 													<?php 
 													if (isset($options['inventorySyncField']) && 'quantityAvailable' == $options['inventorySyncField']) {

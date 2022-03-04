@@ -1,8 +1,26 @@
 *** NetSuite Integration for WooCommerce Changelog ***
-2022-06-01 - version 1.1.8
+2022-03-02 - version 1.2.4
+* Order sync with Background Process
+
+2022-02-23 - version 1.2.3
+* Update Order Mapping
+
+2022-02-10 - version 1.2.2
+* Add actions and filters
+
+2022-02-03 - version 1.2.1
+* Update fulfillment feature
+
+2022-01-31 - version 1.2.0
+* Delete (uninstall) functionality.
+* Import export NetSuite Settings.
+
+2022-01-19 - version 1.1.9
+* Update inventory feature
+
+2022-01-06 - version 1.1.8
 * Add feature search sku with custom field
 * Add price level feature 
-
 
 2021-12-24 - version 1.1.7
 * update Fulfillment feature 

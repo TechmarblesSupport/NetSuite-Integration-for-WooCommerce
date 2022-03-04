@@ -32,7 +32,9 @@ class NS_Inventory {
 
 	// public function test(){
 	// 	if (!empty($_GET['tester']) && 1 == $_GET['tester']) {
-	// 	$this->updateWooInventory();
+	// 		require_once(TMWNI_DIR . 'inc/item.php');
+	// 	$netsuiteClient = new ItemClient();
+	// 	$netsuiteClient->searchItemUpdateInventory('94590302',17260);
 
 	// 	}
 
@@ -110,6 +112,7 @@ class NS_Inventory {
 		$product_count = $wpdb->get_row("SELECT COUNT(*) as total_products FROM {$wpdb->posts} WHERE (post_type='product' OR post_type='product_variation') AND post_status='publish'");
 
 
+
 		$total_count = $product_count->total_products;
 			
 		$limit = TMWNI_Settings::$inventory_sku_lot_limit;
@@ -136,6 +139,8 @@ class NS_Inventory {
 	 * Update Inventory
 	 */
 	public function updateWooInventory() {
+
+
 		//save inventory update time in option table
 		$updateInventoryDateTime = gmdate('Y-m-d H:i:s a');
 		update_option('ns_woo_inventory_update', $updateInventoryDateTime);
@@ -145,6 +150,11 @@ class NS_Inventory {
 		// echo date("Y-m-d H:i:s");die;
 		global $wpdb;
 		$product_count = $wpdb->get_row("SELECT COUNT(*) as total_products FROM {$wpdb->posts} WHERE (post_type='product' OR post_type='product_variation') AND post_status='publish'");
+
+
+
+		$product_count = apply_filters('tm_netsuite_get_woo_product', $product_count);
+
 
 
 		$total_count = $product_count->total_products;
@@ -237,6 +247,8 @@ class NS_Inventory {
 
 
 		$products = $wpdb->get_results($wpdb->prepare("SELECT ID FROM {$wpdb->posts}  WHERE (post_type='product' OR post_type='product_variation') AND post_status='publish' LIMIT %d,%d", $offset, $limit));
+
+		$products = apply_filters('tm_netsuite_get_all_woo_product', $products, $offset, $limit);
 
 		$sku_lot = []; 
 

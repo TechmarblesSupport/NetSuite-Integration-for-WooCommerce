@@ -3,17 +3,20 @@ function tm_ns_validateForm() {
   jQuery('#ns_general_settings_form input').each(function() {
     if ( jQuery(this).val() === '' )
         isValid = false;
-  });
+});
   return isValid;
 }
 
 jQuery(document).ready(function ($) {
+
+
     $("#ns_promo_custform_id").attr('placeholder', 'NS Promo Custom Form ID' );
     $("#ns_promo_discount_id").attr('placeholder', 'NS Promo Discount ID' );
     $("#sku_mapping_custom_field").attr('placeholder', 'Custom Field ID' );
     $("#ns_order_tracking_number").attr('placeholder', 'Tracking Number Meta Key' );
     $("#ns_order_shipping_courier").attr('placeholder', 'Shipping courier Meta Key' );
     $("#ns_order_pickup_date").attr('placeholder', 'Order Pickup Date Meta Key');
+    $("#importfile").attr('accept', 'application/json');
 
 
 
@@ -77,12 +80,12 @@ jQuery(document).ready(function ($) {
 
         }else{
             $("input[name='order_item_location_value']").prop('required',false);
-             $("#hidden_tr_input").addClass('hidden_tr_input');
+            $("#hidden_tr_input").addClass('hidden_tr_input');
 
              // $(".hidden_tr_input").hide();
-        }
-    });
-        
+         }
+     });
+
     $('#ns_coupon_netsuite_sync').click(function(e){
         if($('#ns_coupon_netsuite_sync:checked').length > 0){
             // $('#promo_required_fields').css('display','');
@@ -102,7 +105,7 @@ jQuery(document).ready(function ($) {
 
         }
     });
-        
+
     $('#netsuite_countries').select2();    
     $('#netstuite_locations').select2(); 
 
@@ -126,32 +129,32 @@ jQuery(document).ready(function ($) {
             $('#sku_mapping_custom_field').parents('tr').addClass('hidden');
         }
     });   
-        
+
 });
 
 
 jQuery(function ($) {
     $("#test_api_creds").on('click', function(){
-            $(this).attr('disabled', true);
-            if(tm_ns_validateForm()) {
-                var data = {'action':'tm_validate_ns_credentials'};
-                $.ajax({
-                    type: "post",
-                    dataType: "json",
-                    url: tmwni_admin_settings_js.ajax_url,
-                    data: {'action':'tm_validate_ns_credentials',nonce : tmwni_admin_settings_js.nonce,},
-                    success: function (response) {
-                         $("#test_api_creds").attr('disabled', false);
-                         alert(response.message);
-                    },
-                    complete: function(x) {
-                         $("#test_api_creds").attr('disabled', false);
-                    }
-                });
-            } else {
-                alert("Please 'enter & save' API credentials first");
-            }
-        });
+        $(this).attr('disabled', true);
+        if(tm_ns_validateForm()) {
+            var data = {'action':'tm_validate_ns_credentials'};
+            $.ajax({
+                type: "post",
+                dataType: "json",
+                url: tmwni_admin_settings_js.ajax_url,
+                data: {'action':'tm_validate_ns_credentials',nonce : tmwni_admin_settings_js.nonce,},
+                success: function (response) {
+                   $("#test_api_creds").attr('disabled', false);
+                   alert(response.message);
+               },
+               complete: function(x) {
+                   $("#test_api_creds").attr('disabled', false);
+               }
+           });
+        } else {
+            alert("Please 'enter & save' API credentials first");
+        }
+    });
     
     $(document).on('submit', '.tm_netsuite_ajax_form_save', function (e) {
         e.preventDefault();
@@ -195,6 +198,60 @@ jQuery(function ($) {
 
         return false;
     });
+
+
+
+
+    jQuery(document).on('click', '#import_settings',function(e){
+        e.preventDefault();
+
+
+        var file = jQuery('#importfile')[0].files[0];
+        if(file){
+            var fd = new FormData();
+            fd.append('importfile', file);
+            fd.append( "action", 'import_netsuite_settings'); 
+            fd.append( "nonce", tmwni_admin_settings_js.nonce);      
+            jQuery.ajax({
+                type: "POST",
+                dataType: "json",
+                processData: false,
+                contentType: false,
+                async: false,
+                url: tmwni_admin_settings_js.ajax_url,
+                data: fd,
+        //processData: false,        
+        success: function(response){
+            if(response.status == 'false'){
+                $.notify(' '+response.msg, {type: "danger", icon:"exclamation", align:"right"});
+            }else{
+             $.notify(' '+response.msg, {type: "success", icon:"check", align:"right"});
+
+         }
+
+         jQuery('input[name=importfile').val('');
+
+     }
+
+ });
+
+        }else{
+            $.notify(' '+'Please Choose a file', {type: "danger", icon:"exclamation", align:"right"});
+        }
+        return false;
+
+
+    });
+
+
+
+
+
+
+
+
+
+
 });
 
 
@@ -344,19 +401,19 @@ jQuery(function ($) {
     $("#Promofields").on('click', function(e){
         e.preventDefault();
         var current = $(this);
-            $.ajax({
-                type: "post",
-                dataType: "json",
-                url: tmwni_admin_settings_js.ajax_url,
-                data: {'action':'tm_load_ns_promo_feilds_value',nonce : tmwni_admin_settings_js.nonce,},
-                beforeSend: function() {
+        $.ajax({
+            type: "post",
+            dataType: "json",
+            url: tmwni_admin_settings_js.ajax_url,
+            data: {'action':'tm_load_ns_promo_feilds_value',nonce : tmwni_admin_settings_js.nonce,},
+            beforeSend: function() {
                 current.find('.glyphicon-refresh').addClass("glyphicon-spin");
             },
             complete: function (response) {
-                   current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
-                   location.reload(true);                 
-                },
-            });
+             current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
+             location.reload(true);                 
+         },
+     });
     });
 
 
@@ -364,19 +421,19 @@ jQuery(function ($) {
     $("#locationRefresh").on('click', function(e){
         e.preventDefault();
         var current = $(this);
-            $.ajax({
-                type: "post",
-                dataType: "json",
-                url: tmwni_admin_settings_js.ajax_url,
-                data: {'action':'tm_load_ns_locations',nonce : tmwni_admin_settings_js.nonce,},
-                beforeSend: function() {
+        $.ajax({
+            type: "post",
+            dataType: "json",
+            url: tmwni_admin_settings_js.ajax_url,
+            data: {'action':'tm_load_ns_locations',nonce : tmwni_admin_settings_js.nonce,},
+            beforeSend: function() {
                 current.find('.glyphicon-refresh').addClass("glyphicon-spin");
             },
             complete: function (response) {
-                   current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
-                   location.reload(true);                 
-                },
-            });
+             current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
+             location.reload(true);                 
+         },
+     });
     });
 
 
@@ -385,19 +442,19 @@ jQuery(function ($) {
     $("#priceLevelRefresh").on('click', function(e){
         e.preventDefault();
         var current = $(this);
-            $.ajax({
-                type: "post",
-                dataType: "json",
-                url: tmwni_admin_settings_js.ajax_url,
-                data: {'action':'tm_load_ns_price_levels',nonce : tmwni_admin_settings_js.nonce,},
-                beforeSend: function() {
+        $.ajax({
+            type: "post",
+            dataType: "json",
+            url: tmwni_admin_settings_js.ajax_url,
+            data: {'action':'tm_load_ns_price_levels',nonce : tmwni_admin_settings_js.nonce,},
+            beforeSend: function() {
                 current.find('.glyphicon-refresh').addClass("glyphicon-spin");
             },
             complete: function (response) {
-                   current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
-                   location.reload(true);                 
-                },
-            });
+             current.find('.glyphicon-refresh').removeClass("glyphicon-spin");
+             location.reload(true);                 
+         },
+     });
     });
 
 
@@ -457,9 +514,9 @@ function getCMTypeDropdown(this_table, cm_box_index) {
 
 function getUrlParameter(sParam) {
     var sPageURL = window.location.search.substring(1),
-        sURLVariables = sPageURL.split('&'),
-        sParameterName,
-        i;
+    sURLVariables = sPageURL.split('&'),
+    sParameterName,
+    i;
 
     for (i = 0; i < sURLVariables.length; i++) {
         sParameterName = sURLVariables[i].split('=');
@@ -520,23 +577,6 @@ jQuery(document).on('click', '.manual-update-inventory',function(e){
 });
 
 
-// var fetchWooInventoryStatus = function () {
-//         jQuery.ajax({
-//             type: "POST",
-//             url: tmwni_admin_settings_js.ajax_url,
-//             dataType: "json", 
-//             data: {action: "fetch_inventory_progress"},
-//             success: function (response) {
-//                 if (response == 'True') {
-//                     clearTimeout(timeOutId);
-//                 } else {
-//                     timeOutId = setTimeout(fetchWooInventoryStatus, 10000);
-//                     console.log("call");
-//                 }
-//             }
-//         });
-// }
-
 function fetchWooInventoryStatus(total_count){
 
     jQuery.ajax({
@@ -573,17 +613,21 @@ function fetchWooInventoryStatus(total_count){
         },
         complete:function(response){
             if(total_count === response.responseJSON.processed_count){
-               clearTimeout(timeOutId);
-               jQuery('.manual-update-inventory').attr("disabled", false);
-                jQuery('.progress').remove();
+             clearTimeout(timeOutId);
+             jQuery('.manual-update-inventory').attr("disabled", false);
+             jQuery('.progress').remove();
 
-           } else {
+         } else {
             timeOutId = setTimeout(fetchWooInventoryStatus, 2000, total_count);
         }
     }
 
 });
 }
+
+
+
+
 
 
 

@@ -314,6 +314,9 @@
 																		</fieldset>
 																	</td>
 																</tr>
+																<?php					
+																	do_action('tm_ns_after_order_settings');
+																?>
 																
 															</tbody>
 															<tr valign="top">
@@ -346,6 +349,7 @@
 																				id="enableFulfilmentSync" type="checkbox">                        
 																			</td>
 																		</tr>
+
 																	</tbody>
 																	<tbody id="order_fulfilment_fields" 
 																	<?php 
@@ -414,6 +418,7 @@
 																				<input  class="input-text" type="text" name="ns_order_pickup_date" id="ns_order_pickup_date" value="<?php isset($options['ns_order_pickup_date']) ? esc_attr_e($options['ns_order_pickup_date']) :  ''; ?>">                      
 																			</td>
 																		</tr>
+																		
 																		
 																	</tbody><tbody>
 																		
@@ -564,10 +569,7 @@
 
 																	<input type="button" class="btn btn-primary" value="(+) Add More" id="addMoreConditionalMappingRows" style="float: right; margin-top: 10px;" />
 																	<input type="hidden" name="action" value="tm_netsuite_cm_save" >
-																	<input type="hidden" name="cm_type" value="order" >
-																	<?php					
-																	do_action('tm_ns_after_order_settings');
-																	?>
+																	<input type="hidden" name="cm_type" value="order" >																	
 																	<button class="btn btn-success btn-lg">Save</button>
 																	<hr />
 																</form>
