@@ -39,6 +39,7 @@ use NetSuite\Classes\TermSearchBasic;
 use NetSuite\Classes\SearchBooleanField;
 use NetSuite\Classes\PriceLevelSearchBasic;
 
+
 class TMWNI_Loader {
 
 	private static $instance = null;
@@ -71,6 +72,7 @@ class TMWNI_Loader {
 				$this->add_netsuite_order = new Add_Netsuite_Order();
 
 				require_once TMWNI_DIR . 'inc/inventory.php';
+				require_once TMWNI_DIR . 'inc/orderRefund.php';
 
 				
 
@@ -111,7 +113,7 @@ class TMWNI_Loader {
 							add_action('woocommerce_order_status_' . $TMWNI_OPTIONS['ns_order_autosync_status'], array($this, 'syncNetSuiteOrder'));
 						}			
 					} else {
-							add_action('woocommerce_order_status_processing', array($this, 'syncNetSuiteOrder'));
+						add_action('woocommerce_order_status_processing', array($this, 'syncNetSuiteOrder'));
 					}
 
 
@@ -135,6 +137,9 @@ class TMWNI_Loader {
 				//Fetching Order tracking info
 					add_action('tm_ns_fetch_order_tracking_info', array($this, 'fetchOrderTrackingInfo'));
 
+
+					
+
 				//Custom woo order tracking email
 					add_filter( 'woocommerce_email_classes', array($this,'ns_order_tracking_woocommerce_email') );
 
@@ -146,9 +151,26 @@ class TMWNI_Loader {
 						add_action( 'untrashed_post', array($this, 'restoreNetsuiteOrder') );
 					}
 				}
+				if ( isset($TMWNI_OPTIONS['refund_order_ns_to_woo']) && 'on' == $TMWNI_OPTIONS['refund_order_ns_to_woo']) {
+
+					if (!wp_next_scheduled('tm_ns_fetch_refund_order')) {
+						wp_schedule_event(time(), 'hourly', 'tm_ns_fetch_refund_order');
+					}
+
+					//Fetching Order tracking info
+					add_action('tm_ns_fetch_refund_order', array($this, 'fetchNSRefundOrder'));
+
+				
+				}	
 
 
 
+				
+
+				//Order Refund 
+				if (isset($TMWNI_OPTIONS['refund_order_ns_to_woo']) && 'on' == $TMWNI_OPTIONS['refund_order_ns_to_woo']) {
+					add_action( 'woocommerce_order_refunded', array($this,'create_netsuite_refund'), 10, 2 );
+				}
 			} 
 
 
@@ -160,7 +182,7 @@ class TMWNI_Loader {
 
 	// public function test_order() {
 	// 	if (isset($_GET['test']) && 1 == $_GET['test']) {
-	// 		$this->fetchOrderTrackingInfo();
+	// 		$this->fetchNSRefundOrder();
 	// 	}
 		
 
@@ -233,7 +255,7 @@ class TMWNI_Loader {
 		$status = apply_filters('tm_netsuite_order_autosync_status', $status, $order_id);
 		if (true == $status) {
 			//$this->addNetsuiteOrder($order_id);
-			 $this->push_orders_to_queue($order_id);
+			$this->push_orders_to_queue($order_id);
 		}
 
 
@@ -508,17 +530,25 @@ class TMWNI_Loader {
 						$alb->addressbookAddress->addr1 = $address['address1'];
 						$alb->addressbookAddress->addr2 = $address['address2'];
 						$alb->addressbookAddress->addr3 = '';
-						$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-						;
+						
 						$alb->addressbookAddress->addrPhone = $phone;
 						$alb->addressbookAddress->addrText = $address['address1'];
-						$alb->addressbookAddress->addressee = $address['companyName'];
+						
 						$alb->addressbookAddress->city = $address['city'];
 						$alb->addressbookAddress->country = $ns_country;
 						$alb->addressbookAddress->internalId = $customer_internal_id;
 						$alb->addressbookAddress->override = false;
 						$alb->addressbookAddress->state = $address['state'];
 						$alb->addressbookAddress->zip = $address['postcode'];
+
+						if(!empty($address['companyName'])){
+							$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
+							$alb->addressbookAddress->addressee = $address['companyName'];
+
+						}else{
+							$alb->addressbookAddress->addressee = $address['firstName'] . ' ' . $address['lastName'];
+
+						}
 					} elseif ('shipping' == $key) {
 						$als = new CustomerAddressbook();
 						$als->internalId = $customer_internal_id;
@@ -530,17 +560,27 @@ class TMWNI_Loader {
 						$als->addressbookAddress->addr1 = $address['address1'];
 						$als->addressbookAddress->addr2 = $address['address2'];
 						$als->addressbookAddress->addr3 = '';
-						$als->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
-						;
+						// $als->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
+						// ;
 						$als->addressbookAddress->addrPhone = '';
 						$als->addressbookAddress->addrText = $address['address1'];
-						$als->addressbookAddress->addressee = $address['companyName'];
+						// $als->addressbookAddress->addressee = $address['companyName'];
 						$als->addressbookAddress->city = $address['city'];
 						$als->addressbookAddress->country = $ns_country;
 						$als->addressbookAddress->internalId = $customer_internal_id;
 						$als->addressbookAddress->override = false;
 						$als->addressbookAddress->state = $address['state'];
 						$als->addressbookAddress->zip = $address['postcode'];
+
+
+						if(!empty($address['companyName'])){
+							$alb->addressbookAddress->attention = $address['firstName'] . ' ' . $address['lastName'];
+							$alb->addressbookAddress->addressee = $address['companyName'];
+
+						}else{
+							$alb->addressbookAddress->addressee = $address['firstName'] . ' ' . $address['lastName'];
+
+						}
 					}
 
 				}
@@ -837,7 +877,8 @@ class TMWNI_Loader {
 	*/ 
 	public function fetchOrderTrackingInfo() {
 		global $TMWNI_OPTIONS;
-		if (isset($TMWNI_OPTIONS['enableFulfilmentSync']) && 'on' == $TMWNI_OPTIONS['enableFulfilmentSync']) {
+		if (isset($TMWNI_OPTIONS['enableFulfilmentSync']) && 'on' == $TMWNI_OPTIONS['enableFulfilmentSync']){
+
 			require_once TMWNI_DIR . 'inc/orderTracking.php';
 		} elseif (( isset($TMWNI_OPTIONS['ns_order_tracking_email']) && 'on' == $TMWNI_OPTIONS['ns_order_tracking_email'] ) || ( isset($TMWNI_OPTIONS['ns_order_auto_complete']) && 'on' == $TMWNI_OPTIONS['ns_order_auto_complete'] )) {
 			require_once TMWNI_DIR . 'inc/orderTracking.php';
@@ -885,7 +926,36 @@ class TMWNI_Loader {
 		return false;
 	}
 
-	
+
+	// Order Refund Woo to NS
+	public function create_netsuite_refund( $order_id, $refund_id ) {
+		// if (isset($_POST['action']) && 'woocommerce_refund_line_items' == $_POST['action'] ) {
+			$order_ns_id = get_post_meta($order_id,TMWNI_Settings::$ns_order_id,true); 
+			if(!empty($order_ns_id)){
+				$orderRefund = new OrderRefund();
+				$ns_order_refund_id = $orderRefund->create_nd_refund( $order_id, $refund_id,$order_ns_id );
+				if(!empty($ns_order_refund_id)){
+					update_post_meta($order_id,TMWNI_Settings::$ns_order_refund_internal_id,$ns_order_refund_id);
+
+				}
+
+			}
+
+			
+		}
+		
+	// }
+
+	public static function fetchNSRefundOrder(){
+		$orderRefund = new OrderRefund();
+		$ns_order_refund_id = $orderRefund->get_refund_order();
+
+	}		
+
+
+
+
+
 
 }
 

@@ -328,6 +328,98 @@
 														</table>
 													</div>
 												</form>
+												<!-- refund settings -->
+												<h4>Refund Settings</h4>
+												<form   action="admin-post.php" method="post" id="settings_tm_ns"> 
+													<div class="well">
+														<input type="hidden" name="action" value="save_tm_ns_settings"> 
+														<input type="hidden" name="current_tab_id" value="<?php echo esc_attr($current_tab_id . '_fulfillment_settings'); ?>">
+															<table class="form-table general-form-table">
+																
+																	<tbody>  
+																	
+																		<tr valign="top" class="">
+																			<th scope="row" class="titledesc">
+																				Refund Orders NetSuite to Woo
+																				<div class="tooltip dashicons-before dashicons-editor-help">
+																					<span class="tooltiptext">Refunds the orders on woocommerce if orders  refunds on NetSuite</span>
+																				</div>
+																			</th>
+																			<td class="forminp forminp-checkbox">
+																				<input name="refund_order_ns_to_woo" 
+																				<?php
+																				if (isset($options['refund_order_ns_to_woo']) && 'on' == $options['refund_order_ns_to_woo']) {
+																					echo 'checked ';
+																				}
+																				?>
+																				id="refund_order_ns_to_woo" type="checkbox">                        
+																			</td>
+																		</tr>
+																		<td class="forminp">
+									<fieldset id=refundOrderStatus>
+										<label>Select Order Refund Status(optional)</label>
+										<select class="input-text  " type="text" name="ns_order_refund_status" id="ns_order_refund_status">
+											<option value="">Select Status</option>>
+											<option value="All" <?php
+																				if (isset($options['ns_order_refund_status']) && 'All' == $options['ns_order_refund_status']) {
+																					echo "selected";
+																				}
+																				?>>All</option>
+											<option value="_returnAuthorizationPendingReceipt" <?php
+																				if (isset($options['ns_order_refund_status']) && 'Pending Receipt' == $options['ns_order_refund_status']) {
+																					echo "selected";
+																				}
+																				?>>PENDING BILLING</option>
+											<option value="_returnAuthorizationRefunded" <?php
+																				if (isset($options['ns_order_refund_status']) && 'Refunded' == $options['ns_order_refund_status']) {
+																					echo "selected";
+																				}
+																				?>>REFUNDED</option>
+
+											</select>
+										</fieldset>
+									</td>
+																		<tr valign="top" class="">
+																			<th scope="row" class="titledesc">
+																				Refund Orders Woo to NetSuite
+																				<div class="tooltip dashicons-before dashicons-editor-help">
+																					<span class="tooltiptext">Refunds the orders on NetSuite if orders  refunds on woocommerce</span>
+																				</div>
+																			</th>
+																			<td class="forminp forminp-checkbox">
+																				<input name="refund_order_woo_to_ns" 
+																				<?php
+																				if (isset($options['refund_order_woo_to_ns']) && 'on' == $options['refund_order_woo_to_ns']) {
+																					echo 'checked ';
+																				}
+																				?>
+																				id="refund_order_woo_to_ns" type="checkbox">                        
+																			</td>
+																		</tr>
+	
+																		
+																		
+																		
+																		
+																	</tbody>
+																	<tbody>
+																		
+
+																		
+
+																		<tr valign="top">
+																			<th scope="row" class="titledesc">
+																				<input type="submit" class="button-primary" name="save_post" value="Save Settings" /> 
+																			</th>
+
+																		</tr>
+
+																	</tbody>
+																</table>
+															</td>
+														</form>
+													</div>
+												<!-- refund settings close -->
 												<h4>Fulfillment Sync</h4>
 												<form   action="admin-post.php" method="post" id="settings_tm_ns"> 
 													<div class="well">
@@ -437,6 +529,7 @@
 															</td>
 														</form>
 													</div>
+
 													<div class="col-md-12">
 														<form class="tm_netsuite_ajax_form_save" role="form">
 															<h4>Order Conditional Mapping</h4>

@@ -169,5 +169,21 @@ class CommonIntegrationFunctions {
 		return $all_setting; 
 
 	}
+
+	public function get_post_id_by_meta_key_and_value( $key, $value) {
+			global $wpdb;
+			$meta = $wpdb->get_results('SELECT post_id FROM `' . $wpdb->postmeta . "` WHERE meta_key='" . esc_sql($key) . "' AND meta_value='" . esc_sql($value) . "'");
+			if (is_array($meta) && !empty($meta) && isset($meta[0])) {
+				$meta = $meta[0];
+			}   
+			if (is_object($meta)) {
+				return $meta->post_id;
+			} else {
+				return false;
+			}
+		}
+
+
+
 }
 

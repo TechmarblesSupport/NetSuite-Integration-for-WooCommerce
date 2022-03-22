@@ -63,6 +63,7 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 		$orders = wc_get_orders( $args );
 
 		$internalIds_array = array();
+		$order_internalIds_array = array();
 		foreach ($orders as $key => $order) {
 			$order_id = $order->get_id();
 			$netSuiteSOInternalID = get_post_meta($order_id, 'ns_order_internal_id', true);
@@ -71,7 +72,8 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 			if (empty($tracking_status)  &&  'processing' == $order_status) {
 				$searchValue = new RecordRef();
 				$searchValue->internalId = $netSuiteSOInternalID;	
-				$internalIds_array[] = 	$searchValue;	
+				$internalIds_array[] = 	$searchValue;
+				$order_internalIds_array[$netSuiteSOInternalID] = $order_id;	
 			}	
 
 
@@ -99,7 +101,12 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 				if (isset($searchResponse->searchResult->status->isSuccess) && 1 == $searchResponse->searchResult->status->isSuccess) {
 					$records = $searchResponse->searchResult->recordList->record;
 					foreach ($records as $key => $record) {
-						$this->updateFulFIllment($record);
+						$order_internal_id = $record->internalId;
+						if(isset($order_internalIds_array[$order_internal_id])){
+							$this->updateFulFIllment($record,$order_internalIds_array[$order_internal_id]);
+						}
+						
+
 					}
 
 				}
@@ -114,18 +121,18 @@ class OrdertrackingClient extends CommonIntegrationFunctions {
 
 
 
-	public static function updateFulFIllment( $record) {
+	public static function updateFulFIllment( $record,$order_id) {
 		global $TMWNI_OPTIONS; 
 
 		$order_internal_id = $record->internalId;
-		$args = array(
-			'meta_key'     => 'ns_order_internal_id', // The postmeta key field
-			'meta_value' => $order_internal_id,
+		// $args = array(
+		// 	'meta_key'     => 'ns_order_internal_id', // The postmeta key field
+		// 	'meta_value' => $order_internal_id,
 
-		);
+		// );
 
-		$order = wc_get_orders($args);
-		$order_id = $order[0]->get_id();
+		// $order = wc_get_orders($args);
+		// $order_id = $order[0]->get_id();
 
 
 	

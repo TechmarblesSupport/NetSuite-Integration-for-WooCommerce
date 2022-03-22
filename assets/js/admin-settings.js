@@ -57,6 +57,16 @@ jQuery(document).ready(function ($) {
         }
     });
 
+    $('#refund_order_ns_to_woo').click(function(){
+        if($('#refund_order_ns_to_woo:checked').length > 0){
+            // $('#ns_order_shiping_line_item').css('display','');
+            $('#ns_order_refund_status').removeClass('order_enable_fields');
+        }else{
+            $('#ns_order_refund_status').addClass('order_enable_fields');
+            // $('#ns_order_shiping_line_item').css('display','none');
+        }
+    });
+
 
 
 

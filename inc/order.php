@@ -305,6 +305,7 @@ class OrderClient extends CommonIntegrationFunctions {
 				$addResponse = $this->netsuiteService->add($request);
 				//pr($addResponse); die;
 				if (1 == $addResponse->writeResponse->status->isSuccess) {
+					update_post_meta($order_data['order_id'],TMWNI_Settings::$ns_order_customer_id,$customer_internal_id);
 					$order_internal_id = $addResponse->writeResponse->baseRef->internalId;
 					do_action('tm_netsuite_after_order_add', $order_data, $customer_internal_id, $order_internal_id);
 				}

@@ -145,6 +145,7 @@ class NS_Inventory {
 		$updateInventoryDateTime = gmdate('Y-m-d H:i:s a');
 		update_option('ns_woo_inventory_update', $updateInventoryDateTime);
 
+
 		set_time_limit(0);
 		wp_raise_memory_limit('-1');
 		// echo date("Y-m-d H:i:s");die;
@@ -183,11 +184,14 @@ class NS_Inventory {
 	 * Manually Update Inventory
 	 */
 
-	public function manualUpdateWooInventory() {
+	public function manualUpdateWooInventory() {		
 		set_time_limit(0);
 		wp_raise_memory_limit('-1');
 		// echo date("Y-m-d H:i:s");die;
 		global $wpdb;
+
+
+		
 
 		$product_count = $wpdb->get_row("SELECT COUNT(*) as total_products FROM {$wpdb->posts} WHERE (post_type='product' OR post_type='product_variation') AND post_status='publish'");
 
